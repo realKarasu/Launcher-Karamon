@@ -77,38 +77,37 @@ ipcMain.handle('config:set', (_, updates) => { config.set(updates); return confi
 // ── Minecraft setup (servers.dat + profile + Fabric) ─────────────────────────
 
 ipcMain.handle('minecraft:setup', async () => {
-  const os    = require('os');
-  const p     = require('path');
-  const cfg   = config.get();
-  const mcDir = cfg.mcGameDir || p.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
-  const results = [];
+  const cfg        = config.get();
+  const gameDir    = launcher.instanceDir(cfg);          // .karamon-launcher/instances/Karamon
+  const launcherDir = launcher.mcLauncherDir;            // .minecraft
+  const results    = [];
 
-  // 1 — servers.dat
+  // 1 — servers.dat  →  instance dir
   try {
-    ensureServer(mcDir, 'karamon.fr', 'Karamon');
+    ensureServer(gameDir, 'karamon.fr', 'Karamon');
     results.push('servers.dat ✓');
   } catch (e) {
     results.push('servers.dat ✗ ' + e.message);
   }
 
-  // 2 — Fabric version JSON (downloaded from Fabric meta if missing)
+  // 2 — Fabric version JSON  →  .minecraft/versions/
   try {
-    await ensureFabricVersion(mcDir);
-    results.push('Fabric version ✓');
+    await ensureFabricVersion(launcherDir);
+    results.push('Fabric ✓');
   } catch (e) {
-    results.push('Fabric version ✗ ' + e.message);
+    results.push('Fabric ✗ ' + e.message);
   }
 
-  // 3 — launcher_profiles.json
+  // 3 — launcher_profiles.json  →  .minecraft, gameDir pointe vers instance dir
   try {
-    ensureProfile(mcDir, cfg);
-    results.push('Profil Karamon ✓');
+    ensureProfile(launcherDir, gameDir, cfg);
+    results.push('Profil ✓');
   } catch (e) {
     results.push('Profil ✗ ' + e.message);
   }
 
   const allOk = results.every(r => r.includes('✓'));
-  return { ok: allOk, details: results.join(' | '), path: mcDir };
+  return { ok: allOk, details: results.join(' | '), path: gameDir };
 });
 
 // ── Play — sync mods puis ouvre le launcher Minecraft officiel ─────────────────
@@ -157,10 +156,7 @@ ipcMain.handle('server:ping', async () => {
 // ── Folders ───────────────────────────────────────────────────────────────��────
 
 ipcMain.handle('folder:instance', () => {
-  const os  = require('os');
-  const p   = require('path');
-  const cfg = config.get();
-  const dir = cfg.mcGameDir || p.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+  const dir = launcher.instanceDir(config.get());
   fs.mkdirSync(dir, { recursive: true });
   shell.openPath(dir);
 });

@@ -5,7 +5,8 @@ const os   = require('os');
 const { syncMods } = require('./modSync');
 const { ensureServer } = require('./minecraftSetup');
 
-const DEFAULT_MC_DIR = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+const MC_LAUNCHER_DIR = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+const paths = require('./paths');
 
 // All known locations where MinecraftLauncher.exe / Minecraft.exe can be found
 const MC_LAUNCHER_CANDIDATES = [
@@ -68,27 +69,28 @@ function findMinecraftLauncher(customPath) {
   return null;
 }
 
-function mcGameDir(config) {
-  return config.mcGameDir || DEFAULT_MC_DIR;
+// Instance dir = .karamon-launcher/instances/Karamon  (game files: mods, resourcepacks, servers.dat…)
+function instanceDir(config) {
+  return config.mcGameDir || paths.instanceDir('Karamon');
 }
 
 async function launch(config, onStatus, onProgress) {
-  const gameDir = mcGameDir(config);
+  const gameDir = instanceDir(config);
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
 
-  // Register karamon.fr in servers.dat (must succeed before we open Minecraft)
+  // Register karamon.fr in servers.dat of the instance dir
   try {
     ensureServer(gameDir, 'karamon.fr', 'Karamon');
-    onStatus('Serveur karamon.fr enregistré dans la liste des serveurs.');
+    onStatus('Serveur karamon.fr enregistré.');
   } catch (e) {
     onStatus('Avertissement: enregistrement serveur échoué (' + e.message + ')');
   }
 
-  // Sync mods (and resource packs / shaders) — fully awaited before spawning
+  // Sync mods, resourcepacks, shaderpacks — fully awaited before spawning
   onStatus('Synchronisation des mods...');
   await syncMods(config.modpackUrl, gameDir, onStatus, (p) => onProgress(p * 0.9));
 
-  // All downloads + extractions are done — now open the Minecraft launcher
+  // All done — open the Minecraft launcher
   const exe = findMinecraftLauncher(config.minecraftLauncherPath);
   if (!exe) {
     throw new Error(
@@ -102,14 +104,12 @@ async function launch(config, onStatus, onProgress) {
 }
 
 async function syncOnly(config, onStatus, onProgress) {
-  const gameDir = mcGameDir(config);
+  const gameDir = instanceDir(config);
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
-
-  try {
-    ensureServer(gameDir, 'karamon.fr', 'Karamon');
-  } catch (_) {}
-
+  try { ensureServer(gameDir, 'karamon.fr', 'Karamon'); } catch (_) {}
   await syncMods(config.modpackUrl, gameDir, onStatus, onProgress);
 }
 
-module.exports = { launch, syncOnly, findMinecraftLauncher };
+
+
+module.exports = { launch, syncOnly, findMinecraftLauncher, instanceDir, mcLauncherDir: MC_LAUNCHER_DIR };

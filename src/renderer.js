@@ -294,12 +294,8 @@ function getOrCreateToastContainer() {
 
   // Setup Minecraft: servers.dat + Fabric version + profil launcher
   const setupResult = await api.setupMinecraft();
-  if (setupResult.ok) {
-    addLog('Setup Minecraft OK — ' + setupResult.details, 'ok');
-  } else {
-    addLog('Setup Minecraft: ' + setupResult.details, 'warn');
-    addLog('Dossier .minecraft utilisé: ' + setupResult.path, 'warn');
-  }
+  addLog('Instance: ' + setupResult.path, setupResult.ok ? 'ok' : 'warn');
+  addLog('Setup: ' + setupResult.details, setupResult.ok ? 'ok' : 'warn');
 
   await pingServer();
   setInterval(pingServer, 30000);

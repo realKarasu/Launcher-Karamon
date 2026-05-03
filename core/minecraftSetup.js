@@ -123,24 +123,29 @@ function ensureServer(mcDir, ip, name) {
 
 function ensureResourcePack(mcDir, packFileName) {
   const optionsFile = path.join(mcDir, 'options.txt');
-  if (!fs.existsSync(optionsFile)) return; // Minecraft hasn't run yet — it'll use default options
+  const key   = 'resourcePacks:';
+  const entry = `file/${packFileName}`;
+
+  if (!fs.existsSync(optionsFile)) {
+    // Create a minimal options.txt so Minecraft picks up the resource pack on first launch
+    fs.mkdirSync(mcDir, { recursive: true });
+    fs.writeFileSync(optionsFile, `${key}["vanilla","fabric","${entry}"]\n`, 'utf8');
+    return;
+  }
 
   let lines = fs.readFileSync(optionsFile, 'utf8').split('\n');
-  const key = 'resourcePacks:';
   const idx = lines.findIndex(l => l.startsWith(key));
-  const entry = `file/${packFileName}`;
 
   if (idx === -1) {
     lines.push(`${key}["vanilla","fabric","${entry}"]`);
   } else {
     try {
-      const jsonPart = lines[idx].slice(key.length);
-      const arr = JSON.parse(jsonPart);
+      const arr = JSON.parse(lines[idx].slice(key.length));
       if (!arr.includes(entry)) {
         arr.push(entry);
         lines[idx] = key + JSON.stringify(arr);
       }
-    } catch (_) { /* leave untouched if malformed */ }
+    } catch (_) {}
   }
 
   fs.writeFileSync(optionsFile, lines.join('\n'), 'utf8');
@@ -224,35 +229,38 @@ async function ensureFabricVersion(mcDir) {
 
 // ── Minecraft launcher profile ────────────────────────────────────────────────
 
-function ensureProfile(mcDir, config) {
-  const profilesFile = path.join(mcDir, 'launcher_profiles.json');
+// mcLauncherDir = .minecraft  (where launcher_profiles.json lives)
+// gameDir       = .karamon-launcher/instances/Karamon  (where mods/servers.dat/… live)
+function ensureProfile(mcLauncherDir, gameDir, config) {
+  const profilesFile = path.join(mcLauncherDir, 'launcher_profiles.json');
 
   let data = { profiles: {}, settings: {}, version: 3 };
   if (fs.existsSync(profilesFile)) {
     try { data = JSON.parse(fs.readFileSync(profilesFile, 'utf8')); }
-    catch (_) { /* keep empty structure */ }
+    catch (_) {}
   }
   if (!data.profiles) data.profiles = {};
 
-  const memMb   = config.memoryMb || 12288;
-  const jvmBase = `-Xmx${memMb}m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=50`;
+  const memMb    = config.memoryMb || 12288;
+  const jvmBase  = `-Xmx${memMb}m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=50`;
   const javaArgs = config.jvmArgs ? `${jvmBase} ${config.jvmArgs}` : jvmBase;
 
-  // Find existing Karamon profile by key or name
   const existingKey = Object.keys(data.profiles).find(k =>
     k === 'Karamon' || data.profiles[k].name === 'Karamon'
   );
 
+  const now = new Date().toISOString();
+
   if (existingKey) {
-    // Update JVM args and version if they changed
     const p = data.profiles[existingKey];
-    p.javaArgs       = javaArgs;
-    p.lastVersionId  = FABRIC_ID;
-    if (!p.gameDir && config.mcGameDir) p.gameDir = config.mcGameDir;
+    p.javaArgs      = javaArgs;
+    p.lastVersionId = FABRIC_ID;
+    p.gameDir       = gameDir;
+    p.lastUsed      = now; // mark as most recently used so launcher selects it by default
   } else {
-    const now = new Date().toISOString();
-    const entry = {
+    data.profiles['Karamon'] = {
       created:       now,
+      gameDir,
       icon:          'Grass',
       javaArgs,
       lastUsed:      now,
@@ -260,12 +268,9 @@ function ensureProfile(mcDir, config) {
       name:          'Karamon',
       type:          'custom',
     };
-    // Only set gameDir if it's a non-default custom path
-    if (config.mcGameDir) entry.gameDir = config.mcGameDir;
-    data.profiles['Karamon'] = entry;
   }
 
-  fs.mkdirSync(mcDir, { recursive: true });
+  fs.mkdirSync(mcLauncherDir, { recursive: true });
   fs.writeFileSync(profilesFile, JSON.stringify(data, null, 2), 'utf8');
 }
 
