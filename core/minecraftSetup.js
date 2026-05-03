@@ -250,15 +250,17 @@ function ensureProfile(mcLauncherDir, gameDir, config) {
   );
 
   const now = new Date().toISOString();
+  const useCustomGameDir = path.resolve(gameDir) !== path.resolve(mcLauncherDir);
 
   if (existingKey) {
     const p = data.profiles[existingKey];
     p.javaArgs      = javaArgs;
     p.lastVersionId = FABRIC_ID;
     p.lastUsed      = now;
-    delete p.gameDir; // use default .minecraft
+    if (useCustomGameDir) p.gameDir = gameDir;
+    else delete p.gameDir;
   } else {
-    data.profiles['Karamon'] = {
+    const profile = {
       created:       now,
       icon:          'Grass',
       javaArgs,
@@ -267,6 +269,8 @@ function ensureProfile(mcLauncherDir, gameDir, config) {
       name:          'Karamon',
       type:          'custom',
     };
+    if (useCustomGameDir) profile.gameDir = gameDir;
+    data.profiles['Karamon'] = profile;
   }
 
   fs.mkdirSync(mcLauncherDir, { recursive: true });

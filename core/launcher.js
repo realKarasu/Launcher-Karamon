@@ -56,9 +56,11 @@ function instanceDir(config) {
 
 async function launch(config, onStatus, onProgress) {
   const gameDir = instanceDir(config);
+  const host    = config.server?.host || 'karamon.fr';
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
 
-  try { ensureServer(gameDir, 'karamon.fr', 'Karamon'); } catch (_) {}
+  try { ensureServer(gameDir, host, 'Karamon'); }
+  catch (e) { onStatus('Avertissement servers.dat: ' + e.message); }
 
   onStatus('Synchronisation des mods...');
   await syncMods(config.modpackUrl, gameDir, onStatus, (p) => onProgress(p * 0.9));
@@ -72,8 +74,10 @@ async function launch(config, onStatus, onProgress) {
 
 async function syncOnly(config, onStatus, onProgress) {
   const gameDir = instanceDir(config);
+  const host    = config.server?.host || 'karamon.fr';
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
-  try { ensureServer(gameDir, 'karamon.fr', 'Karamon'); } catch (_) {}
+  try { ensureServer(gameDir, host, 'Karamon'); }
+  catch (e) { onStatus('Avertissement servers.dat: ' + e.message); }
   await syncMods(config.modpackUrl, gameDir, onStatus, onProgress);
 }
 

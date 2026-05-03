@@ -77,14 +77,15 @@ ipcMain.handle('config:set', (_, updates) => { config.set(updates); return confi
 // ── Minecraft setup (servers.dat + profile + Fabric) ─────────────────────────
 
 ipcMain.handle('minecraft:setup', async () => {
-  const cfg        = config.get();
-  const gameDir    = launcher.instanceDir(cfg);   // .minecraft (or custom if set)
-  const launcherDir = gameDir;                    // same dir
-  const results    = [];
+  const cfg         = config.get();
+  const gameDir     = launcher.instanceDir(cfg);   // .minecraft (or custom if set)
+  const launcherDir = launcher.mcLauncherDir;      // always %APPDATA%/.minecraft — official launcher reads here
+  const host        = cfg.server?.host || 'karamon.fr';
+  const results     = [];
 
-  // 1 — servers.dat  →  instance dir
+  // 1 — servers.dat  →  instance/game dir
   try {
-    ensureServer(gameDir, 'karamon.fr', 'Karamon');
+    ensureServer(gameDir, host, 'Karamon');
     results.push('servers.dat ✓');
   } catch (e) {
     results.push('servers.dat ✗ ' + e.message);
@@ -98,7 +99,7 @@ ipcMain.handle('minecraft:setup', async () => {
     results.push('Fabric ✗ ' + e.message);
   }
 
-  // 3 — launcher_profiles.json  →  .minecraft, gameDir pointe vers instance dir
+  // 3 — launcher_profiles.json  →  .minecraft; profile.gameDir = custom dir if set
   try {
     ensureProfile(launcherDir, gameDir, cfg);
     results.push('Profil ✓');
