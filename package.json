@@ -6,6 +6,7 @@
   "main": "main.mjs",
   "scripts": {
     "start": "npx electron .",
+    "prebuild": "node scripts/convert-icon.js",
     "build": "electron-builder --win --x64",
     "pack": "electron-builder --dir"
   },
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "electron": "^33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^2.1.8"
   }
 }
