@@ -1,0 +1,18 @@
+{
+  "name": "karamon-launcher",
+  "version": "1.0.0",
+  "description": "Karamon Minecraft Launcher",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "npx electron .",
+    "build": "electron-builder --win --x64",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

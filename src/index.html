@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Karamon Launcher</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════ BACKGROUND ═══════════════════════════════════ -->
+<div class="bg-canvas">
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+  <div class="bg-orb orb3"></div>
+  <canvas id="particles-canvas"></canvas>
+</div>
+
+<!-- ═══════════════════════════ APP SHELL ════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- TITLE BAR -->
+  <header class="titlebar" id="drag-region">
+    <div class="titlebar-left">
+      <img src="../assets/icon.png" alt="logo" class="titlebar-logo" onerror="this.style.display='none'" />
+      <span class="titlebar-name">KARAMON LAUNCHER</span>
+      <span class="titlebar-version">v1.0</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="tb-btn" id="btn-minimize" title="Réduire">&#x2212;</button>
+      <button class="tb-btn" id="btn-maximize" title="Agrandir">&#x25A1;</button>
+      <button class="tb-btn close" id="btn-close" title="Fermer">&#x2715;</button>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <button class="nav-btn active" data-panel="home" title="Accueil">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Accueil</span>
+      </button>
+      <button class="nav-btn" data-panel="mods" title="Mods">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <span>Mods</span>
+      </button>
+      <button class="nav-btn" data-panel="settings" title="Paramètres">
+        <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+        <span>Paramètres</span>
+      </button>
+      <div class="sidebar-spacer"></div>
+      <button class="nav-btn" id="btn-folder" title="Dossier instance">
+        <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+        <span>Dossier</span>
+      </button>
+    </nav>
+
+    <!-- PANELS CONTAINER -->
+    <div class="panels">
+
+      <!-- ── HOME PANEL ── -->
+      <section class="panel active" id="panel-home">
+        <div class="home-content">
+
+          <!-- Server status card -->
+          <div class="server-card glass">
+            <div class="server-status-dot" id="status-dot"></div>
+            <div class="server-info">
+              <span class="server-name">karamon.fr</span>
+              <span class="server-status-text" id="status-text">Vérification...</span>
+            </div>
+            <div class="server-players" id="server-players">— / —</div>
+          </div>
+
+          <!-- Play area -->
+          <div class="play-area">
+            <div class="play-logo">
+              <img src="../assets/logo.png" alt="Karamon" onerror="this.style.display='none'" />
+              <div class="play-title-text">KARAMON</div>
+            </div>
+
+            <button class="play-btn" id="btn-play">
+              <span class="play-btn-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+              <span class="play-btn-label" id="play-label">JOUER</span>
+            </button>
+
+            <div class="play-sub">
+              <span class="play-version">Fabric 1.21.1</span>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="progress-wrap" id="progress-wrap">
+            <div class="progress-bar" id="progress-bar"></div>
+            <span class="progress-label" id="progress-label">Prêt</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── MODS PANEL ── -->
+      <section class="panel" id="panel-mods">
+        <div class="panel-header">
+          <h2>Gestion des mods</h2>
+          <p class="panel-sub">Synchronise le pack depuis GitHub Releases</p>
+        </div>
+        <div class="mods-info glass">
+          <div class="mods-url-label">Pack URL</div>
+          <div class="mods-url" id="mods-url-display">—</div>
+          <div class="mods-actions">
+            <button class="btn-primary" id="btn-sync-mods">
+              <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              Mettre à jour les mods
+            </button>
+            <button class="btn-ghost" id="btn-open-mods-folder">
+              <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+              Ouvrir le dossier
+            </button>
+          </div>
+        </div>
+        <div class="mods-list-wrap glass" id="mods-list">
+          <p class="mods-empty">Synchronise les mods pour afficher la liste.</p>
+        </div>
+      </section>
+
+      <!-- ── SETTINGS PANEL ── -->
+      <section class="panel" id="panel-settings">
+        <div class="panel-header">
+          <h2>Paramètres</h2>
+          <p class="panel-sub">Configuration du launcher</p>
+        </div>
+        <div class="settings-form glass">
+          <div class="form-group">
+            <label>Dossier .minecraft (laisser vide = auto)</label>
+            <input type="text" id="cfg-mc-game-dir" placeholder="%APPDATA%\.minecraft" />
+            <span class="form-hint">Laisse vide pour utiliser le dossier par défaut</span>
+          </div>
+          <div class="form-group">
+            <label>Chemin du Launcher Minecraft (laisser vide = auto)</label>
+            <input type="text" id="cfg-launcher-path" placeholder="C:\Program Files (x86)\Minecraft Launcher\MinecraftLauncher.exe" />
+            <span class="form-hint">Laisse vide pour détection automatique</span>
+          </div>
+          <div class="form-group">
+            <label>RAM allouée (Mo)</label>
+            <input type="number" id="cfg-memory" min="1024" max="32768" step="512" placeholder="12288" />
+            <span class="form-hint">Recommandé: 8192–12288 Mo (8–12 Go)</span>
+          </div>
+          <div class="form-group">
+            <label>Arguments JVM supplémentaires</label>
+            <input type="text" id="cfg-jvm-args" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
+          </div>
+          <div class="form-group">
+            <label>Chemin Java (laisser vide = auto)</label>
+            <input type="text" id="cfg-java-path" placeholder="C:\Program Files\Java\jdk-21\bin\java.exe" />
+          </div>
+          <div class="form-group">
+            <label>URL du modpack</label>
+            <input type="text" id="cfg-modpack-url" />
+          </div>
+          <div class="form-group">
+            <label>Serveur (host)</label>
+            <input type="text" id="cfg-server-host" />
+          </div>
+          <div class="form-group">
+            <div class="form-check">
+              <input type="checkbox" id="cfg-close-on-launch" />
+              <label for="cfg-close-on-launch">Fermer le launcher au lancement</label>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" id="btn-save-settings">Sauvegarder</button>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /panels -->
+  </div><!-- /layout -->
+
+  <!-- CONSOLE -->
+  <div class="console-wrap" id="console-wrap">
+    <div class="console-header" id="console-toggle">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zm-2-1H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/></svg>
+      <span>Console</span>
+      <div class="console-spacer"></div>
+      <button class="console-btn" id="btn-export-logs" title="Exporter les logs">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      </button>
+      <button class="console-btn" id="btn-clear-logs" title="Effacer">
+        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+      <span class="console-chevron" id="console-chevron">▲</span>
+    </div>
+    <div class="console-body" id="console-body">
+      <div class="console-lines" id="console-lines"></div>
+    </div>
+  </div>
+
+</div><!-- /app-shell -->
+
+<script src="renderer.js"></script>
+</body>
+</html>

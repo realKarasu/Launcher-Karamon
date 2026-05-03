@@ -1,5 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
 build/
+out/
+
+# Runtime user config
+config/
+
+# Claude AI session files
+.claude/
+
+# Logs
+*.log
+logs/
+
+# IDE
 .idea/
 .vscode/
+
+# Java (old build artifacts)
 *.class
-*.log
+*.jar
+
+# OS
+.DS_Store
+Thumbs.db
