@@ -1,6 +1,8 @@
 const fs   = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const https = require('https');
+const http  = require('http');
 
 // ── NBT helpers ────────────────────────────────────────────────────────────────
 
@@ -175,4 +177,96 @@ function ensureShader(mcDir, shaderFileName) {
   }
 }
 
-module.exports = { ensureServer, ensureResourcePack, ensureShader };
+// ── HTTP helper (follows redirects) ───────────────────────────────────────────
+
+function fetchText(url) {
+  return new Promise((resolve, reject) => {
+    function doGet(targetUrl) {
+      const lib = targetUrl.startsWith('https') ? https : http;
+      lib.get(targetUrl, (res) => {
+        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume();
+          return doGet(res.headers.location);
+        }
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+        res.on('error', reject);
+      }).on('error', reject);
+    }
+    doGet(url);
+  });
+}
+
+// ── Fabric version JSON ───────────────────────────────────────────────────────
+
+const MC_VERSION      = '1.21.1';
+const FABRIC_VERSION  = '0.19.2';
+const FABRIC_ID       = `fabric-loader-${FABRIC_VERSION}-${MC_VERSION}`;
+const FABRIC_META_URL = `https://meta.fabricmc.net/v2/versions/loader/${MC_VERSION}/${FABRIC_VERSION}/profile/json`;
+
+async function ensureFabricVersion(mcDir) {
+  const versionDir  = path.join(mcDir, 'versions', FABRIC_ID);
+  const versionJson = path.join(versionDir, `${FABRIC_ID}.json`);
+
+  if (fs.existsSync(versionJson)) return; // already installed
+
+  const json = await fetchText(FABRIC_META_URL);
+  // Validate it's real JSON with the expected id
+  const parsed = JSON.parse(json);
+  if (!parsed.id || !parsed.id.includes('fabric')) {
+    throw new Error('Réponse Fabric meta invalide');
+  }
+
+  fs.mkdirSync(versionDir, { recursive: true });
+  fs.writeFileSync(versionJson, json, 'utf8');
+}
+
+// ── Minecraft launcher profile ────────────────────────────────────────────────
+
+function ensureProfile(mcDir, config) {
+  const profilesFile = path.join(mcDir, 'launcher_profiles.json');
+
+  let data = { profiles: {}, settings: {}, version: 3 };
+  if (fs.existsSync(profilesFile)) {
+    try { data = JSON.parse(fs.readFileSync(profilesFile, 'utf8')); }
+    catch (_) { /* keep empty structure */ }
+  }
+  if (!data.profiles) data.profiles = {};
+
+  const memMb   = config.memoryMb || 12288;
+  const jvmBase = `-Xmx${memMb}m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=50`;
+  const javaArgs = config.jvmArgs ? `${jvmBase} ${config.jvmArgs}` : jvmBase;
+
+  // Find existing Karamon profile by key or name
+  const existingKey = Object.keys(data.profiles).find(k =>
+    k === 'Karamon' || data.profiles[k].name === 'Karamon'
+  );
+
+  if (existingKey) {
+    // Update JVM args and version if they changed
+    const p = data.profiles[existingKey];
+    p.javaArgs       = javaArgs;
+    p.lastVersionId  = FABRIC_ID;
+    if (!p.gameDir && config.mcGameDir) p.gameDir = config.mcGameDir;
+  } else {
+    const now = new Date().toISOString();
+    const entry = {
+      created:       now,
+      icon:          'Grass',
+      javaArgs,
+      lastUsed:      now,
+      lastVersionId: FABRIC_ID,
+      name:          'Karamon',
+      type:          'custom',
+    };
+    // Only set gameDir if it's a non-default custom path
+    if (config.mcGameDir) entry.gameDir = config.mcGameDir;
+    data.profiles['Karamon'] = entry;
+  }
+
+  fs.mkdirSync(mcDir, { recursive: true });
+  fs.writeFileSync(profilesFile, JSON.stringify(data, null, 2), 'utf8');
+}
+
+module.exports = { ensureServer, ensureResourcePack, ensureShader, ensureFabricVersion, ensureProfile };

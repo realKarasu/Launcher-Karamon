@@ -8,10 +8,11 @@ import fs from 'fs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const config     = require('./core/config.js');
-const launcher   = require('./core/launcher.js');
-const pingServer = require('./core/serverPing.js');
-const paths      = require('./core/paths.js');
+const config        = require('./core/config.js');
+const launcher      = require('./core/launcher.js');
+const pingServer    = require('./core/serverPing.js');
+const paths         = require('./core/paths.js');
+const { ensureServer, ensureFabricVersion, ensureProfile } = require('./core/minecraftSetup.js');
 
 // ── Window ─────────────────────────────────────────────────��───────────────────
 
@@ -68,10 +69,47 @@ ipcMain.on('window:maximize', () => {
 });
 ipcMain.on('window:close', () => mainWindow?.close());
 
-// ── Config ─────────────────────────────���───────────────────────────��───────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 ipcMain.handle('config:get', () => config.get());
 ipcMain.handle('config:set', (_, updates) => { config.set(updates); return config.get(); });
+
+// ── Minecraft setup (servers.dat + profile + Fabric) ─────────────────────────
+
+ipcMain.handle('minecraft:setup', async () => {
+  const os    = require('os');
+  const p     = require('path');
+  const cfg   = config.get();
+  const mcDir = cfg.mcGameDir || p.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+  const results = [];
+
+  // 1 — servers.dat
+  try {
+    ensureServer(mcDir, 'karamon.fr', 'Karamon');
+    results.push('servers.dat ✓');
+  } catch (e) {
+    results.push('servers.dat ✗ ' + e.message);
+  }
+
+  // 2 — Fabric version JSON (downloaded from Fabric meta if missing)
+  try {
+    await ensureFabricVersion(mcDir);
+    results.push('Fabric version ✓');
+  } catch (e) {
+    results.push('Fabric version ✗ ' + e.message);
+  }
+
+  // 3 — launcher_profiles.json
+  try {
+    ensureProfile(mcDir, cfg);
+    results.push('Profil Karamon ✓');
+  } catch (e) {
+    results.push('Profil ✗ ' + e.message);
+  }
+
+  const allOk = results.every(r => r.includes('✓'));
+  return { ok: allOk, details: results.join(' | '), path: mcDir };
+});
 
 // ── Play — sync mods puis ouvre le launcher Minecraft officiel ─────────────────
 
@@ -119,7 +157,10 @@ ipcMain.handle('server:ping', async () => {
 // ── Folders ───────────────────────────────────────────────────────────────��────
 
 ipcMain.handle('folder:instance', () => {
-  const dir = paths.instanceDir(config.get().instanceName);
+  const os  = require('os');
+  const p   = require('path');
+  const cfg = config.get();
+  const dir = cfg.mcGameDir || p.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
   fs.mkdirSync(dir, { recursive: true });
   shell.openPath(dir);
 });

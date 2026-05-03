@@ -219,12 +219,12 @@ $('btn-save-settings').addEventListener('click', async () => {
     memoryMb: parseInt($('cfg-memory').value) || 12288,
     jvmArgs:  $('cfg-jvm-args').value.trim(),
     javaPath: $('cfg-java-path').value.trim(),
+    mcGameDir: $('cfg-mc-game-dir').value.trim(),
     minecraftLauncherPath: $('cfg-launcher-path').value.trim(),
     modpackUrl: $('cfg-modpack-url').value.trim(),
     closeLauncherOnGameStart: $('cfg-close-on-launch').checked,
     server: {
       host: $('cfg-server-host').value.trim(),
-      autoJoin: $('cfg-auto-join').checked,
     },
   };
   await api.saveConfig(updates);
@@ -291,6 +291,15 @@ function getOrCreateToastContainer() {
   addLog('Karamon Launcher démarré.', 'ok');
 
   await loadSettings();
+
+  // Setup Minecraft: servers.dat + Fabric version + profil launcher
+  const setupResult = await api.setupMinecraft();
+  if (setupResult.ok) {
+    addLog('Setup Minecraft OK — ' + setupResult.details, 'ok');
+  } else {
+    addLog('Setup Minecraft: ' + setupResult.details, 'warn');
+    addLog('Dossier .minecraft utilisé: ' + setupResult.path, 'warn');
+  }
 
   await pingServer();
   setInterval(pingServer, 30000);

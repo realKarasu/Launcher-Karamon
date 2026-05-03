@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('launcher', {
   getConfig:   () => ipcRenderer.invoke('config:get'),
   saveConfig:  (data) => ipcRenderer.invoke('config:set', data),
 
+  // Minecraft setup
+  setupMinecraft: () => ipcRenderer.invoke('minecraft:setup'),
+
   // Game
   play:          () => ipcRenderer.invoke('launch:play'),
   syncMods:      () => ipcRenderer.invoke('launch:sync-mods'),
