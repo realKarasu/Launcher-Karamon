@@ -2,105 +2,73 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
-const { syncMods } = require('./modSync');
+const { syncMods }   = require('./modSync');
 const { ensureServer } = require('./minecraftSetup');
-
-const MC_LAUNCHER_DIR = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
 const paths = require('./paths');
 
-// All known locations where MinecraftLauncher.exe / Minecraft.exe can be found
-const MC_LAUNCHER_CANDIDATES = [
-  // Standard installer — Program Files (x86)
+const MC_LAUNCHER_DIR = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+
+// ── Détection du launcher Minecraft ───────────────────────────────────────────
+
+const EXE_CANDIDATES = [
   'C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe',
-  'C:\\Program Files (x86)\\Minecraft Launcher\\Minecraft.exe',
-  'C:\\Program Files (x86)\\Minecraft Launcher\\minecraft.exe',
-  // Standard installer — Program Files
   'C:\\Program Files\\Minecraft Launcher\\MinecraftLauncher.exe',
-  'C:\\Program Files\\Minecraft Launcher\\Minecraft.exe',
-  // AppData\Local
   path.join(os.homedir(), 'AppData', 'Local', 'Minecraft Launcher', 'MinecraftLauncher.exe'),
-  path.join(os.homedir(), 'AppData', 'Local', 'Minecraft Launcher', 'Minecraft.exe'),
-  path.join(os.homedir(), 'AppData', 'Local', 'Packages',
-    'Microsoft.4297127D64EC6_8wekyb3d8bbwe', 'LocalCache', 'Local',
-    'xal', 'launcher', 'minecraftlauncher.exe'),
-  // AppData\Roaming
   path.join(os.homedir(), 'AppData', 'Roaming', 'Minecraft', 'MinecraftLauncher.exe'),
-  path.join(os.homedir(), 'AppData', 'Roaming', 'Minecraft', 'Minecraft.exe'),
-  // Desktop shortcuts (some users have it here)
-  path.join(os.homedir(), 'Desktop', 'Minecraft.exe'),
-  path.join(os.homedir(), 'Desktop', 'MinecraftLauncher.exe'),
 ];
 
-// Scan common directories for any subfolder containing the exe
-function searchInDir(baseDir, exeNames) {
-  try {
-    for (const sub of fs.readdirSync(baseDir)) {
-      if (!sub.toLowerCase().includes('minecraft')) continue;
-      const full = path.join(baseDir, sub);
-      for (const exe of exeNames) {
-        const candidate = path.join(full, exe);
-        if (fs.existsSync(candidate)) return candidate;
-      }
-    }
-  } catch (_) {}
+function findLauncherExe(customPath) {
+  if (customPath && fs.existsSync(customPath)) return { type: 'exe', path: customPath };
+  for (const p of EXE_CANDIDATES) {
+    if (fs.existsSync(p)) return { type: 'exe', path: p };
+  }
   return null;
 }
 
-function findMinecraftLauncher(customPath) {
-  if (customPath && fs.existsSync(customPath)) return customPath;
+/**
+ * Ouvre le Minecraft Launcher.
+ * - Si un .exe est trouvé  → spawn direct
+ * - Sinon (version Microsoft Store) → explorer.exe avec l'URI shell de l'app UWP
+ */
+function openMinecraftLauncher(customPath) {
+  const found = findLauncherExe(customPath);
 
-  for (const p of MC_LAUNCHER_CANDIDATES) {
-    if (fs.existsSync(p)) return p;
+  if (found) {
+    spawn(found.path, [], { detached: true, stdio: 'ignore' }).unref();
+    return;
   }
 
-  // Dynamic search in Program Files and AppData
-  const exeNames = ['MinecraftLauncher.exe', 'Minecraft.exe', 'minecraft.exe', 'minecraftlauncher.exe'];
-  const searchRoots = [
-    'C:\\Program Files',
-    'C:\\Program Files (x86)',
-    path.join(os.homedir(), 'AppData', 'Local'),
-    path.join(os.homedir(), 'AppData', 'Roaming'),
-  ];
-  for (const root of searchRoots) {
-    const found = searchInDir(root, exeNames);
-    if (found) return found;
-  }
-
-  return null;
+  // Fallback Microsoft Store : lancer via shell:AppsFolder
+  // L'ID du package UWP officiel Minecraft
+  const uwpId = 'Microsoft.4297127D64EC6_8wekyb3d8bbwe!Minecraft';
+  spawn('explorer.exe', [`shell:AppsFolder\\${uwpId}`], {
+    detached: true, stdio: 'ignore',
+  }).unref();
 }
+
+// ── Instance dir ───────────────────────────────────────────────────────────────
 
 function instanceDir(config) {
   return config.mcGameDir || MC_LAUNCHER_DIR;
 }
 
+// ── Launch ─────────────────────────────────────────────────────────────────────
+
 async function launch(config, onStatus, onProgress) {
   const gameDir = instanceDir(config);
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
 
-  // Register karamon.fr in servers.dat of the instance dir
-  try {
-    ensureServer(gameDir, 'karamon.fr', 'Karamon');
-    onStatus('Serveur karamon.fr enregistré.');
-  } catch (e) {
-    onStatus('Avertissement: enregistrement serveur échoué (' + e.message + ')');
-  }
+  try { ensureServer(gameDir, 'karamon.fr', 'Karamon'); } catch (_) {}
 
-  // Sync mods, resourcepacks, shaderpacks — fully awaited before spawning
   onStatus('Synchronisation des mods...');
   await syncMods(config.modpackUrl, gameDir, onStatus, (p) => onProgress(p * 0.9));
 
-  // All done — open the Minecraft launcher
-  const exe = findMinecraftLauncher(config.minecraftLauncherPath);
-  if (!exe) {
-    throw new Error(
-      'Launcher Minecraft introuvable. Spécifie le chemin dans Paramètres → Chemin du Launcher.'
-    );
-  }
-
   onStatus('Lancement du launcher Minecraft...');
   onProgress(1);
-  spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
+  openMinecraftLauncher(config.minecraftLauncherPath);
 }
+
+// ── Sync only ──────────────────────────────────────────────────────────────────
 
 async function syncOnly(config, onStatus, onProgress) {
   const gameDir = instanceDir(config);
@@ -109,6 +77,4 @@ async function syncOnly(config, onStatus, onProgress) {
   await syncMods(config.modpackUrl, gameDir, onStatus, onProgress);
 }
 
-
-
-module.exports = { launch, syncOnly, findMinecraftLauncher, instanceDir, mcLauncherDir: MC_LAUNCHER_DIR };
+module.exports = { launch, syncOnly, instanceDir, mcLauncherDir: MC_LAUNCHER_DIR };

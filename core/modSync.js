@@ -81,8 +81,8 @@ async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
   const entries = zip.getEntries().filter(e => !e.isDirectory);
 
   const incomingMods          = new Set();
-  const incomingResourcePacks = new Set();
-  const incomingShaderPacks   = new Set();
+  const incomingResourcePacks = new Map(); // lowercase -> original name
+  const incomingShaderPacks   = new Map(); // lowercase -> original name
 
   for (const entry of entries) {
     const entryName = entry.entryName.replace(/\\/g, '/');
@@ -90,14 +90,28 @@ async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
     const folder    = entryName.split('/')[0].toLowerCase();
 
     if (folder === 'resourcepacks') {
-      incomingResourcePacks.add(baseName.toLowerCase());
-      zip.extractEntryTo(entry, resourcepacksDir, false, true);
-      onStatus(`Resource pack: ${baseName}`);
+      const relPath = entryName.substring('resourcepacks/'.length);
+      if (!relPath) continue;
+      const topLevel = relPath.split('/')[0];
+      if (!incomingResourcePacks.has(topLevel.toLowerCase())) {
+        incomingResourcePacks.set(topLevel.toLowerCase(), topLevel);
+        onStatus(`Resource pack: ${topLevel}`);
+      }
+      const destPath = path.join(resourcepacksDir, relPath);
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.writeFileSync(destPath, entry.getData());
 
     } else if (folder === 'shaderpacks' || folder === 'shaders') {
-      incomingShaderPacks.add(baseName.toLowerCase());
-      zip.extractEntryTo(entry, shaderpacksDir, false, true);
-      onStatus(`Shader pack: ${baseName}`);
+      const relPath = entryName.substring((folder + '/').length);
+      if (!relPath) continue;
+      const topLevel = relPath.split('/')[0];
+      if (!incomingShaderPacks.has(topLevel.toLowerCase())) {
+        incomingShaderPacks.set(topLevel.toLowerCase(), topLevel);
+        onStatus(`Shader pack: ${topLevel}`);
+      }
+      const destPath = path.join(shaderpacksDir, relPath);
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.writeFileSync(destPath, entry.getData());
 
     } else if (baseName.endsWith('.jar')) {
       incomingMods.add(baseName.toLowerCase());
@@ -114,11 +128,27 @@ async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
     }
   }
 
+  // Remove resource packs no longer in the pack
+  for (const item of fs.readdirSync(resourcepacksDir)) {
+    if (!incomingResourcePacks.has(item.toLowerCase())) {
+      fs.rmSync(path.join(resourcepacksDir, item), { recursive: true, force: true });
+      onStatus(`Resource pack supprimé: ${item}`);
+    }
+  }
+
+  // Remove shader packs no longer in the pack
+  for (const item of fs.readdirSync(shaderpacksDir)) {
+    if (!incomingShaderPacks.has(item.toLowerCase())) {
+      fs.rmSync(path.join(shaderpacksDir, item), { recursive: true, force: true });
+      onStatus(`Shader pack supprimé: ${item}`);
+    }
+  }
+
   // Activate resource packs and shaders
-  for (const name of incomingResourcePacks) {
+  for (const name of incomingResourcePacks.values()) {
     try { ensureResourcePack(mcGameDir, name); } catch (_) {}
   }
-  for (const name of incomingShaderPacks) {
+  for (const name of incomingShaderPacks.values()) {
     try { ensureShader(mcGameDir, name); } catch (_) {}
   }
 

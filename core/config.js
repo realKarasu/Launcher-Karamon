@@ -4,8 +4,8 @@ const paths = require('./paths');
 
 const DEFAULTS = {
   modpackUrl: 'https://github.com/realKarasu/Launcher-Karamon/releases/download/mods/karamon-pack.zip',
-  mcGameDir: '',            // empty = auto (%APPDATA%\.minecraft)
-  minecraftLauncherPath: '', // empty = auto-detect
+  mcGameDir: '',
+  minecraftLauncherPath: '',
   memoryMb: 12288,
   javaPath: '',
   jvmArgs: '',
