@@ -78,8 +78,8 @@ ipcMain.handle('config:set', (_, updates) => { config.set(updates); return confi
 
 ipcMain.handle('minecraft:setup', async () => {
   const cfg        = config.get();
-  const gameDir    = launcher.instanceDir(cfg);          // .karamon-launcher/instances/Karamon
-  const launcherDir = launcher.mcLauncherDir;            // .minecraft
+  const gameDir    = launcher.instanceDir(cfg);   // .minecraft (or custom if set)
+  const launcherDir = gameDir;                    // same dir
   const results    = [];
 
   // 1 — servers.dat  →  instance dir

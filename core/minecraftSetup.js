@@ -255,12 +255,11 @@ function ensureProfile(mcLauncherDir, gameDir, config) {
     const p = data.profiles[existingKey];
     p.javaArgs      = javaArgs;
     p.lastVersionId = FABRIC_ID;
-    p.gameDir       = gameDir;
-    p.lastUsed      = now; // mark as most recently used so launcher selects it by default
+    p.lastUsed      = now;
+    delete p.gameDir; // use default .minecraft
   } else {
     data.profiles['Karamon'] = {
       created:       now,
-      gameDir,
       icon:          'Grass',
       javaArgs,
       lastUsed:      now,

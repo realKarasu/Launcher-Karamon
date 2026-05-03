@@ -6,6 +6,8 @@ win:
     - target: nsis
       arch: [x64]
   icon: assets/icon.ico
+  signingHashAlgorithms: []
+  sign: null
 
 nsis:
   oneClick: true
@@ -14,13 +16,21 @@ nsis:
   createStartMenuShortcut: true
 
 files:
-  - "**/*"
-  - "!src/main/**"
-  - "!build/**"
-  - "!scripts/**"
-  - "!*.bat"
-  - "!**/*.java"
+  - "main.mjs"
+  - "preload.cjs"
+  - "src/**/*"
+  - "core/**/*"
+  - "assets/**/*"
+  - "node_modules/**/*"
   - "!node_modules/.cache/**"
+  - "!**/*.java"
+  - "!*.bat"
+  - "!main.js"
+  - "!preload.js"
+  - "!scripts/**"
+  - "!build/**"
+  - "!dist/**"
+  - "!.claude/**"
 
 extraResources:
   - from: assets/

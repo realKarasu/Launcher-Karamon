@@ -69,9 +69,8 @@ function findMinecraftLauncher(customPath) {
   return null;
 }
 
-// Instance dir = .karamon-launcher/instances/Karamon  (game files: mods, resourcepacks, servers.dat…)
 function instanceDir(config) {
-  return config.mcGameDir || paths.instanceDir('Karamon');
+  return config.mcGameDir || MC_LAUNCHER_DIR;
 }
 
 async function launch(config, onStatus, onProgress) {

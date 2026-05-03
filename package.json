@@ -2,6 +2,7 @@
   "name": "karamon-launcher",
   "version": "1.0.0",
   "description": "Karamon Minecraft Launcher",
+  "author": "Karamon",
   "main": "main.mjs",
   "scripts": {
     "start": "npx electron .",
