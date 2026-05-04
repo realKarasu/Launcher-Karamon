@@ -45,6 +45,10 @@ async function isUpToDate(packUrl, mcGameDir) {
  * Skips the download entirely if the server-side pack hasn't changed (ETag check).
  */
 async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
+  if (!packUrl.startsWith('https://')) {
+    throw new Error('Le modpack URL doit utiliser HTTPS.');
+  }
+
   const modsDir          = path.join(mcGameDir, 'mods');
   const resourcepacksDir = path.join(mcGameDir, 'resourcepacks');
   const shaderpacksDir   = path.join(mcGameDir, 'shaderpacks');
@@ -98,6 +102,7 @@ async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
         onStatus(`Resource pack: ${topLevel}`);
       }
       const destPath = path.join(resourcepacksDir, relPath);
+      if (!path.resolve(destPath).startsWith(path.resolve(resourcepacksDir) + path.sep)) continue;
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
       fs.writeFileSync(destPath, entry.getData());
 
@@ -110,6 +115,7 @@ async function syncMods(packUrl, mcGameDir, onStatus, onProgress) {
         onStatus(`Shader pack: ${topLevel}`);
       }
       const destPath = path.join(shaderpacksDir, relPath);
+      if (!path.resolve(destPath).startsWith(path.resolve(shaderpacksDir) + path.sep)) continue;
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
       fs.writeFileSync(destPath, entry.getData());
 

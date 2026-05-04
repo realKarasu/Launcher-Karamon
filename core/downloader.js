@@ -9,7 +9,12 @@ function request(url, options = {}) {
     const lib = url.startsWith('https') ? https : http;
     const req = lib.get(url, options, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        return request(res.headers.location, options).then(resolve).catch(reject);
+        const next = res.headers.location || '';
+        if (url.startsWith('https:') && !next.startsWith('https:')) {
+          reject(new Error('HTTPS→HTTP redirect blocked: ' + next));
+          return;
+        }
+        return request(next, options).then(resolve).catch(reject);
       }
       let data = [];
       res.on('data', (chunk) => data.push(chunk));
@@ -104,7 +109,12 @@ function head(url) {
       const req = lib.request(targetUrl, { method: 'HEAD' }, (res) => {
         res.resume(); // consume body (empty for HEAD but needed to free socket)
         if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
-          return doHead(res.headers.location);
+          const next = res.headers.location;
+          if (targetUrl.startsWith('https:') && !next.startsWith('https:')) {
+            reject(new Error('HTTPS→HTTP redirect blocked: ' + next));
+            return;
+          }
+          return doHead(next);
         }
         resolve(res.headers);
       });
@@ -127,12 +137,16 @@ async function download(url, dest, expectedSha1, onProgress, label) {
 
   await new Promise((resolve, reject) => {
     function doGet(targetUrl) {
-      // Pick the right lib for each hop (handles https→http redirects)
       const lib = targetUrl.startsWith('https') ? https : http;
       const req = lib.get(targetUrl, (res) => {
         if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
           res.resume();
-          return doGet(res.headers.location);
+          const next = res.headers.location;
+          if (targetUrl.startsWith('https:') && !next.startsWith('https:')) {
+            reject(new Error('HTTPS→HTTP redirect blocked for ' + (label || url)));
+            return;
+          }
+          return doGet(next);
         }
         if (res.statusCode < 200 || res.statusCode >= 300) {
           reject(new Error(`HTTP ${res.statusCode} downloading ${label || url}`));
