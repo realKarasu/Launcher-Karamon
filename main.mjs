@@ -58,12 +58,15 @@ function setupAutoUpdater() {
   if (!app.isPackaged) return; // skip in dev mode
 
   autoUpdater.autoDownload         = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false; // on installe seulement si l'utilisateur confirme
 
-  autoUpdater.on('update-available',  (info)     => send('update:available', { version: info.version }));
-  autoUpdater.on('download-progress', (progress) => send('update:progress',  { percent: Math.round(progress.percent) }));
-  autoUpdater.on('update-downloaded', (info)     => send('update:ready',     { version: info.version }));
-  autoUpdater.on('error',             (err)      => send('update:error',     err.message));
+  autoUpdater.on('update-downloaded', (info) => {
+    // Ne jamais proposer si c'est la même version (cache electron-updater)
+    if (info.version === app.getVersion()) return;
+    send('update:ready', { version: info.version });
+  });
+
+  autoUpdater.on('error', () => {}); // silencieux
 
   autoUpdater.checkForUpdates().catch(() => {}); // silent if no network
 }

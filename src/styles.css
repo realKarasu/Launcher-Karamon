@@ -185,8 +185,8 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 8px 20px;
-  background: var(--accent-dim);
-  border-bottom: 1px solid rgba(79,124,255,0.2);
+  background: var(--success-dim);
+  border-bottom: 1px solid rgba(62,207,106,0.2);
   flex-shrink: 0;
   gap: 12px;
 }
@@ -199,30 +199,13 @@ html, body {
   color: var(--text);
 }
 
+.update-bar-left svg { color: var(--success); flex-shrink: 0; }
+
 .update-bar-right {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.update-spinner {
-  width: 13px;
-  height: 13px;
-  border: 2px solid rgba(79,124,255,0.3);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.update-check-icon { color: var(--success); flex-shrink: 0; }
-
-.update-bar.ready {
-  background: var(--success-dim);
-  border-bottom-color: rgba(62,207,106,0.2);
 }
 
 .btn-update-install {
