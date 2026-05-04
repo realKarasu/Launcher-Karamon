@@ -229,6 +229,43 @@ function showToast(msg, type = '') {
   }, 3000);
 }
 
+// ── Auto-updater ──────────────────────────────────────────────────────────────
+
+const updateBar       = $('update-bar');
+const updateMsg       = $('update-msg');
+const updateSpinner   = $('update-spinner');
+const updateCheckIcon = $('update-check-icon');
+const updateBarRight  = $('update-bar-right');
+
+api.onUpdateAvailable(({ version }) => {
+  updateBar.hidden = false;
+  updateBar.classList.remove('ready');
+  updateSpinner.style.display   = '';
+  updateCheckIcon.hidden        = true;
+  updateMsg.textContent         = `Mise à jour v${version} disponible — téléchargement…`;
+  updateBarRight.innerHTML      = '';
+  addLog(`Mise à jour v${version} disponible, téléchargement en cours…`, 'info');
+});
+
+api.onUpdateProgress(({ percent }) => {
+  updateMsg.textContent = `Mise à jour en cours… ${percent}%`;
+});
+
+api.onUpdateReady(({ version }) => {
+  updateBar.classList.add('ready');
+  updateSpinner.style.display   = 'none';
+  updateCheckIcon.hidden        = false;
+  updateMsg.textContent         = `Mise à jour v${version} prête`;
+  updateBarRight.innerHTML      = `
+    <button class="btn-update-install" id="btn-install-update">Redémarrer</button>
+    <button class="btn-update-later"   id="btn-dismiss-update">Plus tard</button>
+  `;
+  document.getElementById('btn-install-update').addEventListener('click', () => api.installUpdate());
+  document.getElementById('btn-dismiss-update').addEventListener('click', () => { updateBar.hidden = true; });
+  addLog(`Mise à jour v${version} prête à installer.`, 'ok');
+  showToast(`Mise à jour v${version} prête — redémarrez pour l'installer.`, 'ok');
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async function init() {
   addLog('Karamon Launcher démarré.', 'ok');

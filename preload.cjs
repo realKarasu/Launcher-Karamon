@@ -28,7 +28,13 @@ contextBridge.exposeInMainWorld('launcher', {
   exportLogs:    (text) => ipcRenderer.invoke('logs:export', text),
 
   // Events
-  onStatus:      (cb) => ipcRenderer.on('status:update', (_, msg) => cb(msg)),
-  onProgress:    (cb) => ipcRenderer.on('progress:update', (_, val) => cb(val)),
-  onGameState:   (cb) => ipcRenderer.on('game:state', (_, state) => cb(state)),
+  onStatus:      (cb) => ipcRenderer.on('status:update',    (_, msg)   => cb(msg)),
+  onProgress:    (cb) => ipcRenderer.on('progress:update',  (_, val)   => cb(val)),
+  onGameState:   (cb) => ipcRenderer.on('game:state',       (_, state) => cb(state)),
+
+  // Auto-updater
+  onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_, info) => cb(info)),
+  onUpdateProgress:  (cb) => ipcRenderer.on('update:progress',  (_, info) => cb(info)),
+  onUpdateReady:     (cb) => ipcRenderer.on('update:ready',     (_, info) => cb(info)),
+  installUpdate:     ()   => ipcRenderer.send('update:install'),
 });

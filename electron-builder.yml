@@ -1,6 +1,11 @@
 appId: fr.karamon.launcher
 productName: Karamon Launcher
 
+publish:
+  provider: github
+  owner: realKarasu
+  repo: Launcher-Karamon
+
 win:
   target:
     - target: nsis

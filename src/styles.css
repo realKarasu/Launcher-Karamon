@@ -170,14 +170,82 @@ html, body {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel {
   display: none;
-  height: 100%;
 }
-.panel.active { display: flex; flex-direction: column; }
+.panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* ── Update bar ─────────────────────────────────────────────────────────────── */
+.update-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: var(--accent-dim);
+  border-bottom: 1px solid rgba(79,124,255,0.2);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.update-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.update-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.update-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(79,124,255,0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.update-check-icon { color: var(--success); flex-shrink: 0; }
+
+.update-bar.ready {
+  background: var(--success-dim);
+  border-bottom-color: rgba(62,207,106,0.2);
+}
+
+.btn-update-install {
+  padding: 5px 14px;
+  background: var(--success);
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.14s;
+  -webkit-app-region: no-drag;
+}
+.btn-update-install:hover { background: #4ee07a; }
+
+.btn-update-later {
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  transition: color 0.14s;
+  -webkit-app-region: no-drag;
+}
+.btn-update-later:hover { color: var(--text-2); }
 
 /* ── Home panel ─────────────────────────────────────────────────────────────── */
 #panel-home {

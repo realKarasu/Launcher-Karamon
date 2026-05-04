@@ -11,7 +11,8 @@
     "pack": "electron-builder --dir"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "electron": "^33.4.11",

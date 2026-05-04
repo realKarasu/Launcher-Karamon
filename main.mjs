@@ -13,6 +13,7 @@ const launcher      = require('./core/launcher.js');
 const pingServer    = require('./core/serverPing.js');
 const paths         = require('./core/paths.js');
 const { ensureServer, ensureFabricVersion, ensureProfile } = require('./core/minecraftSetup.js');
+const { autoUpdater } = require('electron-updater');
 
 // ── Window ─────────────────────────────────────────────────��───────────────────
 
@@ -43,12 +44,31 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
   app.on('activate', () => { if (!mainWindow) createWindow(); });
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// ── Auto-updater ──────────────────────────────────────────────────────────────
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return; // skip in dev mode
+
+  autoUpdater.autoDownload         = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available',  (info)     => send('update:available', { version: info.version }));
+  autoUpdater.on('download-progress', (progress) => send('update:progress',  { percent: Math.round(progress.percent) }));
+  autoUpdater.on('update-downloaded', (info)     => send('update:ready',     { version: info.version }));
+  autoUpdater.on('error',             (err)      => send('update:error',     err.message));
+
+  autoUpdater.checkForUpdates().catch(() => {}); // silent if no network
+}
+
+ipcMain.on('update:install', () => autoUpdater.quitAndInstall(false, true));
 
 // ── Helpers ───────────────────────────────────���────────────────────────────────
 
