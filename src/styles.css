@@ -303,16 +303,13 @@ html, body {
   z-index: 1;
 }
 
-.hero-title {
-  font-size: 54px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  line-height: 1;
-  background: linear-gradient(135deg, #ffffff 0%, #a8bcff 45%, #c084fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.hero-banner {
+  width: 300px;
+  max-width: 55%;
+  object-fit: contain;
   margin-bottom: 10px;
+  filter: drop-shadow(0 6px 28px rgba(0, 0, 0, 0.6));
+  -webkit-user-drag: none;
 }
 
 .hero-version {
