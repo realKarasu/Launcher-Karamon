@@ -8,6 +8,7 @@
     "start": "npx electron .",
     "prebuild": "node scripts/convert-icon.js",
     "build": "electron-builder --win --x64",
+    "postbuild": "node scripts/checksums.mjs",
     "pack": "electron-builder --dir"
   },
   "dependencies": {
