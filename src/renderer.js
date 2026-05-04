@@ -232,15 +232,14 @@ function showToast(msg, type = '') {
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
 api.onUpdateReady(({ version }) => {
-  const bar = $('update-bar');
   $('update-msg').textContent = `Mise à jour v${version} prête à installer`;
-  bar.hidden = false;
+  $('update-bar').classList.add('show');
   addLog(`Mise à jour v${version} prête à installer.`, 'ok');
   showToast(`Mise à jour v${version} disponible.`, 'ok');
 });
 
 $('btn-install-update').addEventListener('click', () => api.installUpdate());
-$('btn-dismiss-update').addEventListener('click', () => { $('update-bar').hidden = true; });
+$('btn-dismiss-update').addEventListener('click', () => $('update-bar').classList.remove('show'));
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async function init() {

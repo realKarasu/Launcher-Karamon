@@ -181,7 +181,7 @@ html, body {
 
 /* ── Update bar ─────────────────────────────────────────────────────────────── */
 .update-bar {
-  display: flex;
+  display: none; /* caché par défaut — JS l'affiche via .show */
   align-items: center;
   justify-content: space-between;
   padding: 8px 20px;
@@ -190,6 +190,7 @@ html, body {
   flex-shrink: 0;
   gap: 12px;
 }
+.update-bar.show { display: flex; }
 
 .update-bar-left {
   display: flex;
