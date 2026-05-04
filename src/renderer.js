@@ -1,15 +1,12 @@
 'use strict';
-/* ─────────────────────────────────────────────────────────────────────────────
-   Karamon Launcher — renderer process
-   ───────────────────────────────────────────────────────────────────────── */
 
 const api = window.launcher;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let gameRunning  = false;
+let gameRunning   = false;
 let actionRunning = false;
-let consoleOpen  = true;
-const logs       = [];
+let consoleOpen   = false;
+const logs        = [];
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -23,51 +20,6 @@ const consoleWrap    = $('console-wrap');
 const statusDot      = $('status-dot');
 const statusText     = $('status-text');
 const serverPlayers  = $('server-players');
-const modsUrlDisplay = $('mods-url-display');
-
-// ── Particles background ──────────────────────────────────────────────────────
-(function initParticles() {
-  const canvas = $('particles-canvas');
-  const ctx    = canvas.getContext('2d');
-  let W, H, particles;
-
-  function resize() {
-    W = canvas.width  = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  }
-
-  function createParticles() {
-    particles = Array.from({ length: 60 }, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      r: Math.random() * 1.5 + 0.3,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.25,
-      a: Math.random() * 0.4 + 0.1,
-    }));
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    for (const p of particles) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(120,150,255,${p.a})`;
-      ctx.fill();
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < 0) p.x = W;
-      if (p.x > W) p.x = 0;
-      if (p.y < 0) p.y = H;
-      if (p.y > H) p.y = 0;
-    }
-    requestAnimationFrame(draw);
-  }
-
-  resize();
-  createParticles();
-  draw();
-  window.addEventListener('resize', () => { resize(); createParticles(); });
-}());
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-btn[data-panel]').forEach((btn) => {
@@ -86,10 +38,15 @@ $('btn-close').addEventListener('click',   () => api.close());
 $('drag-region').addEventListener('dblclick', () => api.maximize());
 
 // ── Console toggle ────────────────────────────────────────────────────────────
-$('console-toggle').addEventListener('click', () => {
-  consoleOpen = !consoleOpen;
-  consoleWrap.classList.toggle('collapsed', !consoleOpen);
-});
+function setConsole(open) {
+  consoleOpen = open;
+  consoleWrap.classList.toggle('open', consoleOpen);
+  if (open) consoleLinesEl.scrollTop = consoleLinesEl.scrollHeight;
+}
+
+$('btn-logs-toggle').addEventListener('click', () => setConsole(!consoleOpen));
+$('console-toggle').addEventListener('click',  () => setConsole(!consoleOpen));
+$('console-close').addEventListener('click',   (e) => { e.stopPropagation(); setConsole(false); });
 
 // ── Log output ────────────────────────────────────────────────────────────────
 function addLog(msg, type = '') {
@@ -99,23 +56,21 @@ function addLog(msg, type = '') {
 
   let cls = 'log-line';
   if (type) cls += ' log-' + type;
-  else if (/error|erreur|échec/i.test(msg)) cls += ' log-error';
-  else if (/warn|avertissement/i.test(msg))  cls += ' log-warn';
-  else if (/ok|terminé|connecté|synchronis/i.test(msg)) cls += ' log-ok';
-  else if (msg.startsWith('[MC]')) cls += ' log-mc';
+  else if (/error|erreur|échec/i.test(msg))                  cls += ' log-error';
+  else if (/warn|avertissement/i.test(msg))                  cls += ' log-warn';
+  else if (/ok|terminé|connecté|synchronis/i.test(msg))     cls += ' log-ok';
+  else if (msg.startsWith('[MC]'))                           cls += ' log-mc';
 
   const el = document.createElement('div');
   el.className = cls;
   el.textContent = line;
   consoleLinesEl.appendChild(el);
 
-  // Keep max 500 lines
   while (consoleLinesEl.children.length > 500) {
     consoleLinesEl.removeChild(consoleLinesEl.firstChild);
   }
-  consoleLinesEl.scrollTop = consoleLinesEl.scrollHeight;
+  if (consoleOpen) consoleLinesEl.scrollTop = consoleLinesEl.scrollHeight;
 
-  // Mirror to progress label
   if (!msg.startsWith('[MC]')) {
     progressLabel.textContent = msg.length > 80 ? msg.slice(0, 80) + '…' : msg;
   }
@@ -137,7 +92,7 @@ api.onProgress((val) => {
 });
 
 api.onGameState(({ running }) => {
-  gameRunning = running;
+  gameRunning   = running;
   actionRunning = false;
   updatePlayButton();
   if (running) {
@@ -181,7 +136,7 @@ function updatePlayButton() {
   }
 }
 
-// ── Sync mods button ──────────────────────────────────────────────────────────
+// ── Sync mods ─────────────────────────────────────────────────────────────────
 $('btn-sync-mods').addEventListener('click', async () => {
   const btn = $('btn-sync-mods');
   btn.disabled = true;
@@ -198,7 +153,7 @@ $('btn-sync-mods').addEventListener('click', async () => {
 });
 
 $('btn-open-mods-folder').addEventListener('click', () => api.openInstance());
-$('btn-folder').addEventListener('click', () => api.openInstance());
+$('btn-folder').addEventListener('click',           () => api.openInstance());
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 async function loadSettings() {
@@ -211,24 +166,22 @@ async function loadSettings() {
   $('cfg-modpack-url').value       = cfg.modpackUrl || '';
   $('cfg-server-host').value       = cfg.server?.host || 'karamon.fr';
   $('cfg-close-on-launch').checked = cfg.closeLauncherOnGameStart || false;
-  modsUrlDisplay.textContent       = cfg.modpackUrl || '—';
 }
 
 $('btn-save-settings').addEventListener('click', async () => {
   const updates = {
-    memoryMb: parseInt($('cfg-memory').value) || 12288,
-    jvmArgs:  $('cfg-jvm-args').value.trim(),
-    javaPath: $('cfg-java-path').value.trim(),
-    mcGameDir: $('cfg-mc-game-dir').value.trim(),
-    minecraftLauncherPath: $('cfg-launcher-path').value.trim(),
-    modpackUrl: $('cfg-modpack-url').value.trim(),
-    closeLauncherOnGameStart: $('cfg-close-on-launch').checked,
+    memoryMb:                  parseInt($('cfg-memory').value) || 12288,
+    jvmArgs:                   $('cfg-jvm-args').value.trim(),
+    javaPath:                  $('cfg-java-path').value.trim(),
+    mcGameDir:                 $('cfg-mc-game-dir').value.trim(),
+    minecraftLauncherPath:     $('cfg-launcher-path').value.trim(),
+    modpackUrl:                $('cfg-modpack-url').value.trim(),
+    closeLauncherOnGameStart:  $('cfg-close-on-launch').checked,
     server: {
       host: $('cfg-server-host').value.trim(),
     },
   };
   await api.saveConfig(updates);
-  modsUrlDisplay.textContent = updates.modpackUrl || '—';
   showToast('Paramètres sauvegardés.', 'ok');
   addLog('Paramètres sauvegardés.', 'ok');
 });
@@ -251,39 +204,29 @@ $('btn-clear-logs').addEventListener('click', (e) => {
 async function pingServer() {
   const result = await api.pingServer();
   if (result.online) {
-    statusDot.className  = 'server-status-dot online';
-    statusText.textContent = 'En ligne';
-    serverPlayers.textContent = `${result.players} / ${result.maxPlayers}`;
+    statusDot.className        = 'server-status-dot online';
+    statusText.textContent     = 'En ligne';
+    serverPlayers.textContent  = `${result.players} / ${result.maxPlayers}`;
   } else {
-    statusDot.className  = 'server-status-dot offline';
-    statusText.textContent = 'Hors ligne';
-    serverPlayers.textContent = '—';
+    statusDot.className        = 'server-status-dot offline';
+    statusText.textContent     = 'Hors ligne';
+    serverPlayers.textContent  = '';
   }
 }
 
 // ── Toast helper ──────────────────────────────────────────────────────────────
 function showToast(msg, type = '') {
-  const container = getOrCreateToastContainer();
+  const container = document.querySelector('.toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast' + (type ? ' toast-' + type : '');
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(20px)';
+    toast.style.opacity    = '0';
+    toast.style.transform  = 'translateX(20px)';
     setTimeout(() => toast.remove(), 300);
   }, 3000);
-}
-
-function getOrCreateToastContainer() {
-  let c = document.querySelector('.toast-container');
-  if (!c) {
-    c = document.createElement('div');
-    c.className = 'toast-container';
-    document.body.appendChild(c);
-  }
-  return c;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -292,7 +235,6 @@ function getOrCreateToastContainer() {
 
   await loadSettings();
 
-  // Setup Minecraft: servers.dat + Fabric version + profil launcher
   const setupResult = await api.setupMinecraft();
   addLog('Instance: ' + setupResult.path, setupResult.ok ? 'ok' : 'warn');
   addLog('Setup: ' + setupResult.details, setupResult.ok ? 'ok' : 'warn');
