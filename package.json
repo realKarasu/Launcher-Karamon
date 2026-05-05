@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "Karamon Minecraft Launcher",
   "author": "Karamon",
-  "main": "main.mjs",
+  "main": "dist/main.cjs",
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
     "start": "npx electron .",
-    "prebuild": "node scripts/convert-icon.js",
-    "build": "electron-builder --win --x64",
-    "postbuild": "node scripts/checksums.mjs",
+    "dev": "npm run build && npm start",
+    "prebuild:dist": "node scripts/convert-icon.js && node build.mjs",
+    "build:dist": "electron-builder --win --x64",
+    "postbuild:dist": "node scripts/checksums.mjs",
     "pack": "electron-builder --dir"
   },
   "dependencies": {
@@ -16,8 +20,12 @@
     "electron-updater": "^6.8.3"
   },
   "devDependencies": {
-    "electron": "^33.4.11",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.19.17",
+    "electron": "^41.5.0",
     "electron-builder": "^26.8.1",
-    "png-to-ico": "^2.1.8"
+    "esbuild": "^0.24.2",
+    "png-to-ico": "^2.1.8",
+    "typescript": "^5.9.3"
   }
 }
