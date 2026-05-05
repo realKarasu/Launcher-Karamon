@@ -4,7 +4,6 @@ export interface ServerInfo {
 }
 
 export interface AppConfig {
-  modpackUrl: string;
   mcGameDir: string;
   minecraftLauncherPath: string;
   memoryMb: number;

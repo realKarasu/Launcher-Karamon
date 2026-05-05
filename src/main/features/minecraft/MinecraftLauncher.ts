@@ -12,6 +12,7 @@ import { ServersDat } from './ServersDat';
 
 const DEFAULT_HOST = 'karamon.fr';
 const DEFAULT_PROFILE_NAME = 'Karamon';
+const MODPACK_URL = 'https://karamon.fr/downloads/karamon-pack.zip';
 
 const EXE_CANDIDATES = [
   'C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe',
@@ -47,7 +48,7 @@ export class MinecraftLauncher {
     this.prepareGameDir(gameDir, config, onStatus);
 
     onStatus('Synchronisation des mods...');
-    await this.modpackSync.sync(config.modpackUrl, gameDir, onStatus, (p) => onProgress(p * 0.9));
+    await this.modpackSync.sync(MODPACK_URL, gameDir, onStatus, (p) => onProgress(p * 0.9));
 
     onStatus('Lancement du launcher Minecraft...');
     onProgress(1);
@@ -61,7 +62,7 @@ export class MinecraftLauncher {
   ): Promise<void> {
     const gameDir = this.instanceDir(config);
     this.prepareGameDir(gameDir, config, onStatus);
-    await this.modpackSync.sync(config.modpackUrl, gameDir, onStatus, onProgress);
+    await this.modpackSync.sync(MODPACK_URL, gameDir, onStatus, onProgress);
   }
 
   private prepareGameDir(gameDir: string, config: AppConfig, onStatus: StatusEmitter): void {
