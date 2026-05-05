@@ -25,7 +25,6 @@ export class SettingsForm {
     $input('cfg-java-path').value = cfg.javaPath ?? '';
     $input('cfg-mc-game-dir').value = cfg.mcGameDir ?? '';
     $input('cfg-launcher-path').value = cfg.minecraftLauncherPath ?? '';
-    $input('cfg-modpack-url').value = cfg.modpackUrl ?? '';
     $input('cfg-server-host').value = cfg.server?.host ?? SettingsForm.DEFAULT_HOST;
     $input('cfg-close-on-launch').checked = cfg.closeLauncherOnGameStart ?? false;
     return cfg;
@@ -46,7 +45,6 @@ export class SettingsForm {
       javaPath: $input('cfg-java-path').value.trim(),
       mcGameDir: $input('cfg-mc-game-dir').value.trim(),
       minecraftLauncherPath: $input('cfg-launcher-path').value.trim(),
-      modpackUrl: $input('cfg-modpack-url').value.trim(),
       closeLauncherOnGameStart: $input('cfg-close-on-launch').checked,
       server: { host: $input('cfg-server-host').value.trim() },
     };

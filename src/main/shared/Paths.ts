@@ -37,10 +37,26 @@ export class Paths {
   }
 
   static default(): Paths {
-    return new Paths(path.join(os.homedir(), 'AppData', 'Roaming', '.karamon-launcher'));
+    return new Paths(path.join(Paths.appDataRoot(), '.karamon-launcher'));
   }
 
   static minecraftLauncherDir(): string {
-    return path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+    if (process.platform === 'darwin') {
+      return path.join(os.homedir(), 'Library', 'Application Support', 'minecraft');
+    }
+    if (process.platform === 'win32') {
+      return path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
+    }
+    return path.join(os.homedir(), '.minecraft');
+  }
+
+  private static appDataRoot(): string {
+    if (process.platform === 'darwin') {
+      return path.join(os.homedir(), 'Library', 'Application Support');
+    }
+    if (process.platform === 'win32') {
+      return path.join(os.homedir(), 'AppData', 'Roaming');
+    }
+    return process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   }
 }

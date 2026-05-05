@@ -2,75 +2,76 @@ import fs from 'fs';
 import path from 'path';
 import type { AppConfig, AppConfigUpdate } from '../../../ipc/contract';
 
-const DEFAULT_MODPACK_URL =
-  'https://github.com/realKarasu/Launcher-Karamon/releases/download/mods/karamon-pack.zip';
-
-const DEFAULTS: AppConfig = {
-  modpackUrl: DEFAULT_MODPACK_URL,
+const DEFAULTS: AppConfig = Object.freeze({
   mcGameDir: '',
   minecraftLauncherPath: '',
-  memoryMb: 2048,
+  memoryMb: 12288,
   javaPath: '',
   jvmArgs: '',
   closeLauncherOnGameStart: false,
   server: { host: 'karamon.fr', port: 25565 },
-};
+}) as AppConfig;
 
 export class Config {
-  private data: AppConfig = { ...DEFAULTS, server: { ...DEFAULTS.server } };
+  private readonly filePath: string;
+  private data: AppConfig | null = null;
 
-  constructor(private readonly filePath: string) {}
+  constructor(filePath: string) {
+    this.filePath = filePath;
+  }
 
   load(): this {
     try {
-      const raw = fs.readFileSync(this.filePath, 'utf-8');
-      const parsed = JSON.parse(raw) as Partial<AppConfig>;
-      this.data = {
-        ...DEFAULTS,
-        ...parsed,
-        server: { ...DEFAULTS.server, ...(parsed.server ?? {}) },
-      };
-      this.data = Config.normalize(this.data);
+      if (fs.existsSync(this.filePath)) {
+        const raw = JSON.parse(fs.readFileSync(this.filePath, 'utf8')) as AppConfigUpdate;
+        this.data = Config.normalize(Config.merge(DEFAULTS, raw));
+        return this;
+      }
     } catch {
-      // file missing or unreadable — keep defaults
+      /* fall through to defaults */
     }
+    this.data = Config.clone(DEFAULTS);
     return this;
   }
 
+  save(): void {
+    if (!this.data) return;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf8');
+  }
+
   get(): AppConfig {
-    return { ...this.data, server: { ...this.data.server } };
+    if (!this.data) this.load();
+    return Config.clone(this.data!);
   }
 
   set(updates: AppConfigUpdate): void {
-    this.data = {
-      ...this.data,
+    if (!this.data) this.load();
+    this.data = Config.normalize(Config.merge(this.data!, updates));
+    this.save();
+  }
+
+  private static merge(base: AppConfig, updates: AppConfigUpdate): AppConfig {
+    return {
+      ...base,
       ...updates,
-      server: { ...this.data.server, ...(updates.server ?? {}) },
+      server: { ...base.server, ...(updates.server ?? {}) },
     };
-    this.data = Config.normalize(this.data);
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
   }
 
   private static normalize(data: AppConfig): AppConfig {
-    const next: AppConfig = { ...data, server: { ...data.server } };
-    const host = typeof next.server.host === 'string' ? next.server.host.trim() : '';
-    const port = Number(next.server.port);
-    next.modpackUrl = Config.normalizeModpackUrl(next.modpackUrl);
-    next.server.host = host || DEFAULTS.server.host;
-    next.server.port = Number.isFinite(port) && port > 0 ? port : DEFAULTS.server.port;
-    return next;
+    const host = typeof data.server.host === 'string' ? data.server.host.trim() : '';
+    const port = Number(data.server.port);
+    return {
+      ...data,
+      server: {
+        host: host || DEFAULTS.server.host,
+        port: Number.isFinite(port) && port > 0 ? port : DEFAULTS.server.port,
+      },
+    };
   }
 
-  private static normalizeModpackUrl(value: unknown): string {
-    const raw = typeof value === 'string' ? value.trim() : '';
-    if (!raw) return DEFAULT_MODPACK_URL;
-    try {
-      const url = new URL(raw);
-      if (url.protocol === 'http:') url.protocol = 'https:';
-      return url.toString();
-    } catch {
-      return raw;
-    }
+  private static clone<T>(o: T): T {
+    return JSON.parse(JSON.stringify(o)) as T;
   }
 }

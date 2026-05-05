@@ -12,6 +12,13 @@ win:
       arch: [x64]
   icon: assets/icon.ico
 
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: assets/icon.png
+  category: public.app-category.games
+
 nsis:
   oneClick: true
   perMachine: false
