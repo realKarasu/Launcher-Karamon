@@ -7,7 +7,7 @@ build/
 out/
 
 # Runtime user config
-config/
+/config/
 
 # Claude AI session files
 .claude/

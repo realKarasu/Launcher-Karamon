@@ -19,7 +19,10 @@ import { OptionsWriter } from './features/minecraft/OptionsWriter';
 import { FabricInstaller } from './features/minecraft/FabricInstaller';
 import { LauncherProfile } from './features/minecraft/LauncherProfile';
 import { ModpackSync } from './features/modpack/ModpackSync';
-import { MinecraftLauncher } from './features/minecraft/MinecraftLauncher';
+import {
+  MinecraftLauncher,
+  type ServerListSetupResult,
+} from './features/minecraft/MinecraftLauncher';
 import { AutoUpdater } from './features/updater/AutoUpdater';
 import { WindowManager } from './WindowManager';
 
@@ -109,19 +112,28 @@ export class KaramonApp {
     const launcherDir = Paths.minecraftLauncherDir();
     const host = cfg.server?.host || 'karamon.fr';
     const results: string[] = [];
+    let ok = true;
 
-    try {
-      new ServersDat(gameDir).ensureServer(host, PROFILE_NAME);
-      results.push('servers.dat ✓');
-    } catch (e) {
-      results.push('servers.dat ✗ ' + (e as Error).message);
+    const serverResults = this.minecraft.ensureServerLists(gameDir, host, PROFILE_NAME);
+    const serverErrors = serverResults.filter(
+      (r): r is Extract<ServerListSetupResult, { ok: false }> => !r.ok,
+    );
+    if (serverErrors.length === 0) {
+      results.push(`servers.dat OK (${serverResults.length} emplacement(s))`);
+    } else {
+      ok = false;
+      results.push(
+        'servers.dat ERREUR ' +
+          serverErrors.map((r) => `${r.dir}: ${r.error}`).join('; '),
+      );
     }
 
     try {
       await this.fabric.ensureVersion(launcherDir);
-      results.push('Fabric ✓');
+      results.push('Fabric OK');
     } catch (e) {
-      results.push('Fabric ✗ ' + (e as Error).message);
+      ok = false;
+      results.push('Fabric ERREUR ' + (e as Error).message);
     }
 
     try {
@@ -132,13 +144,14 @@ export class KaramonApp {
         memoryMb: cfg.memoryMb,
         jvmArgs: cfg.jvmArgs,
       });
-      results.push('Profil ✓');
+      results.push('Profil OK');
     } catch (e) {
-      results.push('Profil ✗ ' + (e as Error).message);
+      ok = false;
+      results.push('Profil ERREUR ' + (e as Error).message);
     }
 
     return {
-      ok: results.every((r) => r.includes('✓')),
+      ok,
       details: results.join(' | '),
       path: gameDir,
     };

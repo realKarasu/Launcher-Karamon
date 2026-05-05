@@ -27,6 +27,10 @@ export interface MinecraftLauncherOptions {
   serversDatFactory: (dir: string) => ServersDat;
 }
 
+export type ServerListSetupResult =
+  | { ok: true; dir: string }
+  | { ok: false; dir: string; error: string };
+
 export class MinecraftLauncher {
   private readonly mcLauncherDir: string;
   private readonly modpackSync: ModpackSync;
@@ -40,6 +44,17 @@ export class MinecraftLauncher {
 
   instanceDir(config: AppConfig): string {
     return config.mcGameDir || this.mcLauncherDir;
+  }
+
+  ensureServerLists(gameDir: string, host: string, name: string): ServerListSetupResult[] {
+    return this.serverListDirs(gameDir).map((dir) => {
+      try {
+        this.serversDatFactory(dir).ensureServer(host, name);
+        return { ok: true, dir };
+      } catch (e) {
+        return { ok: false, dir, error: (e as Error).message };
+      }
+    });
   }
 
   async launch(config: AppConfig, onStatus: StatusEmitter, onProgress: ProgressEmitter): Promise<void> {
@@ -67,11 +82,23 @@ export class MinecraftLauncher {
   private prepareGameDir(gameDir: string, config: AppConfig, onStatus: StatusEmitter): void {
     fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
     const host = config.server?.host || DEFAULT_HOST;
-    try {
-      this.serversDatFactory(gameDir).ensureServer(host, DEFAULT_PROFILE_NAME);
-    } catch (e) {
-      onStatus('Avertissement servers.dat: ' + (e as Error).message);
+    for (const result of this.ensureServerLists(gameDir, host, DEFAULT_PROFILE_NAME)) {
+      if (!result.ok) {
+        onStatus(`Avertissement servers.dat (${result.dir}): ${result.error}`);
+      }
     }
+  }
+
+  private serverListDirs(gameDir: string): string[] {
+    const dirs: string[] = [];
+    const seen = new Set<string>();
+    for (const dir of [gameDir, this.mcLauncherDir]) {
+      const key = path.resolve(dir).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      dirs.push(dir);
+    }
+    return dirs;
   }
 
   private spawnLauncher(customPath: string): void {

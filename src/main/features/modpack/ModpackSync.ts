@@ -46,22 +46,23 @@ export class ModpackSync {
     onStatus: StatusEmitter,
     onProgress: ProgressEmitter,
   ): Promise<void> {
+    const normalizedPackUrl = ModpackSync.normalizePackUrl(packUrl);
     const dirs = this.ensureDirs(gameDir);
 
     onStatus('Vérification du pack...');
     onProgress(0.05);
 
-    if (await this.isUpToDate(packUrl, gameDir, dirs.mods)) {
+    if (await this.isUpToDate(normalizedPackUrl, gameDir, dirs.mods)) {
       onStatus('Mods déjà à jour, aucun téléchargement nécessaire.');
       onProgress(1);
       return;
     }
 
-    const serverKey = await this.fetchServerKey(packUrl);
+    const serverKey = await this.fetchServerKey(normalizedPackUrl);
     const zipPath = path.join(gameDir, 'karamon-pack.zip');
 
     onStatus('Téléchargement du pack de mods...');
-    await this.http.download(packUrl, zipPath, {
+    await this.http.download(normalizedPackUrl, zipPath, {
       label: 'karamon-pack.zip',
       onProgress: (p) => onProgress(0.05 + p * 0.7),
     });
@@ -103,6 +104,18 @@ export class ModpackSync {
         `${summary.resourcepacks.size} resource packs, ${summary.shaderpacks.size} shaders.`,
     );
     onProgress(1);
+  }
+
+  private static normalizePackUrl(packUrl: string): string {
+    const normalized = packUrl.trim();
+    if (!normalized) throw new Error('URL du modpack non configuree.');
+    try {
+      const url = new URL(normalized);
+      if (url.protocol === 'http:') url.protocol = 'https:';
+      return url.toString();
+    } catch {
+      return normalized;
+    }
   }
 
   private ensureDirs(gameDir: string): SyncDirs {

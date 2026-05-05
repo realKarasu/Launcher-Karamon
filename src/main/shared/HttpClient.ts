@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import type { IncomingHttpHeaders } from 'http';
 
 const REDIRECT_STATUS = new Set([301, 302, 307, 308]);
+const MAX_REDIRECTS = 10;
 
 export interface HttpResponse {
   status: number;
@@ -20,9 +21,23 @@ export interface DownloadOptions {
 
 export class HttpClient {
   static assertHttps(url: string): void {
-    if (!url || !url.toLowerCase().startsWith('https://')) {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error('URL invalide: ' + (url || '(vide)'));
+    }
+    if (parsed.protocol !== 'https:') {
       throw new Error('URL non sécurisée refusée (HTTPS requis): ' + url);
     }
+  }
+
+  private static redirectTarget(location: string | string[], baseUrl: string): string {
+    const value = Array.isArray(location) ? location[0] : location;
+    if (!value) throw new Error('Redirection invalide: ' + baseUrl);
+    const next = new URL(value, baseUrl).toString();
+    HttpClient.assertHttps(next);
+    return next;
   }
 
   static sha1File(filePath: string): string {
@@ -33,7 +48,7 @@ export class HttpClient {
 
   get(url: string, { timeoutMs = 30000 }: { timeoutMs?: number } = {}): Promise<HttpResponse> {
     return new Promise((resolve, reject) => {
-      const fetchUrl = (target: string): void => {
+      const fetchUrl = (target: string, redirects = 0): void => {
         try {
           HttpClient.assertHttps(target);
         } catch (e) {
@@ -42,7 +57,14 @@ export class HttpClient {
         const req = https.get(target, (res) => {
           if (res.statusCode && REDIRECT_STATUS.has(res.statusCode) && res.headers.location) {
             res.resume();
-            return fetchUrl(res.headers.location);
+            if (redirects >= MAX_REDIRECTS) {
+              return reject(new Error('Trop de redirections: ' + target));
+            }
+            try {
+              return fetchUrl(HttpClient.redirectTarget(res.headers.location, target), redirects + 1);
+            } catch (e) {
+              return reject(e);
+            }
           }
           const chunks: Buffer[] = [];
           res.on('data', (c: Buffer) => chunks.push(c));
@@ -72,7 +94,7 @@ export class HttpClient {
 
   head(url: string, { timeoutMs = 10000 }: { timeoutMs?: number } = {}): Promise<IncomingHttpHeaders> {
     return new Promise((resolve, reject) => {
-      const sendHead = (target: string): void => {
+      const sendHead = (target: string, redirects = 0): void => {
         try {
           HttpClient.assertHttps(target);
         } catch (e) {
@@ -81,7 +103,14 @@ export class HttpClient {
         const req = https.request(target, { method: 'HEAD' }, (res) => {
           res.resume();
           if (res.statusCode && REDIRECT_STATUS.has(res.statusCode) && res.headers.location) {
-            return sendHead(res.headers.location);
+            if (redirects >= MAX_REDIRECTS) {
+              return reject(new Error('Trop de redirections: ' + target));
+            }
+            try {
+              return sendHead(HttpClient.redirectTarget(res.headers.location, target), redirects + 1);
+            } catch (e) {
+              return reject(e);
+            }
           }
           resolve(res.headers);
         });
@@ -106,7 +135,7 @@ export class HttpClient {
     }
 
     await new Promise<void>((resolve, reject) => {
-      const fetchUrl = (target: string): void => {
+      const fetchUrl = (target: string, redirects = 0): void => {
         try {
           HttpClient.assertHttps(target);
         } catch (e) {
@@ -115,7 +144,14 @@ export class HttpClient {
         const req = https.get(target, (res) => {
           if (res.statusCode && REDIRECT_STATUS.has(res.statusCode) && res.headers.location) {
             res.resume();
-            return fetchUrl(res.headers.location);
+            if (redirects >= MAX_REDIRECTS) {
+              return reject(new Error('Trop de redirections: ' + target));
+            }
+            try {
+              return fetchUrl(HttpClient.redirectTarget(res.headers.location, target), redirects + 1);
+            } catch (e) {
+              return reject(e);
+            }
           }
           if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
             return reject(new Error(`HTTP ${res.statusCode} downloading ${label || url}`));
