@@ -1,14 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import AdmZip from 'adm-zip';
 import type { HttpClient } from '../../shared/HttpClient';
 import { OptionsWriter } from '../minecraft/OptionsWriter';
 
 const CACHE_FILE = '.karamon-sync-cache.json';
-const MODS_MANIFEST = 'manifest.json';
+const MODS_ZIP_NAME = 'mods.zip';
+const MODS_ZIP_TMP = '.karamon-mods.zip';
 const RP_MANIFEST = 'resourcepacks-manifest.json';
 const RP_PATH_PREFIX = 'resourcepacks/';
 const PARALLEL_DOWNLOADS = 8;
+const ZIP_DOWNLOAD_TIMEOUT_MS = 600000;
 
 export type StatusEmitter = (msg: string) => void;
 export type ProgressEmitter = (fraction: number) => void;
@@ -24,7 +27,9 @@ interface SyncDirs {
 }
 
 interface CacheData {
-  key?: string;
+  modsEtag?: string;
+  jarNames?: string[];
+  rpsKey?: string;
   syncedAt?: number;
 }
 
@@ -50,12 +55,16 @@ export class ModpackSync {
   ): Promise<void> {
     const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
     const dirs = this.ensureDirs(gameDir);
+    const zipUrl = base + MODS_ZIP_NAME;
 
     onStatus('Vérification du pack...');
     onProgress(0.02);
 
-    const modsManifestText = await this.http.getText(base + MODS_MANIFEST);
-    const mods = ModpackSync.parseManifest(modsManifestText, MODS_MANIFEST);
+    const headers = await this.http.head(zipUrl);
+    const etag = ModpackSync.extractEtag(headers);
+    if (!etag) {
+      throw new Error(`mods.zip indisponible (ETag/Last-Modified manquant)`);
+    }
 
     let rpsManifestText = '';
     let rps: ManifestEntry[] = [];
@@ -66,21 +75,44 @@ export class ModpackSync {
       /* resource pack manifest is optional */
     }
 
-    const cacheKey = ModpackSync.hashManifests(modsManifestText, rpsManifestText);
-    if (
-      this.readCache(gameDir).key === cacheKey &&
-      this.allEntriesPresent(dirs.mods, mods) &&
-      this.allEntriesPresent(dirs.resourcepacks, rps)
-    ) {
+    const cache = this.readCache(gameDir);
+    const rpsKey = ModpackSync.hashText(rpsManifestText);
+    const modsUpToDate =
+      cache.modsEtag === etag &&
+      Array.isArray(cache.jarNames) &&
+      cache.jarNames.length > 0 &&
+      cache.jarNames.every((n) => fs.existsSync(path.join(dirs.mods, n)));
+    const rpsUpToDate = this.allEntriesPresent(dirs.resourcepacks, rps);
+
+    if (modsUpToDate && rpsUpToDate) {
       onStatus('Pack déjà à jour, aucun téléchargement nécessaire.');
       onProgress(1);
       return;
     }
 
-    onStatus(`Téléchargement de ${mods.length} mods...`);
-    await this.downloadAll(mods, dirs.mods, base, '', onStatus, onProgress, 0.05, 0.7);
+    let jarNames: string[] = cache.jarNames ?? [];
 
-    if (rps.length > 0) {
+    if (!modsUpToDate) {
+      onStatus('Téléchargement de mods.zip...');
+      const zipPath = path.join(gameDir, MODS_ZIP_TMP);
+      try {
+        await this.http.download(zipUrl, zipPath, {
+          label: MODS_ZIP_NAME,
+          timeoutMs: ZIP_DOWNLOAD_TIMEOUT_MS,
+          onProgress: (p) => onProgress(0.05 + p * 0.65),
+        });
+
+        onStatus('Extraction des mods...');
+        onProgress(0.72);
+        jarNames = ModpackSync.extractJars(zipPath, dirs.mods);
+      } finally {
+        fs.rmSync(zipPath, { force: true });
+      }
+      this.cleanupExtras(dirs.mods, jarNames, '.jar', onStatus, 'Mod supprimé');
+      onProgress(0.78);
+    }
+
+    if (rps.length > 0 && !rpsUpToDate) {
       onStatus(`Téléchargement de ${rps.length} resource packs...`);
       await this.downloadAll(
         rps,
@@ -89,14 +121,20 @@ export class ModpackSync {
         RP_PATH_PREFIX,
         onStatus,
         onProgress,
-        0.75,
-        0.2,
+        0.8,
+        0.15,
       );
+    } else {
+      onProgress(0.95);
     }
 
-    onProgress(0.96);
-    this.cleanupExtras(dirs.mods, mods, '.jar', onStatus, 'Mod supprimé');
-    this.cleanupExtras(dirs.resourcepacks, rps, '.zip', onStatus, 'Resource pack supprimé');
+    this.cleanupExtras(
+      dirs.resourcepacks,
+      rps.map((e) => e.name),
+      '.zip',
+      onStatus,
+      'Resource pack supprimé',
+    );
 
     const writer = this.optionsWriterFactory(gameDir);
     for (const rp of rps) {
@@ -107,8 +145,8 @@ export class ModpackSync {
       }
     }
 
-    this.writeCache(gameDir, cacheKey);
-    onStatus(`Pack synchronisé: ${mods.length} mods, ${rps.length} resource packs.`);
+    this.writeCache(gameDir, { modsEtag: etag, jarNames, rpsKey, syncedAt: Date.now() });
+    onStatus(`Pack synchronisé: ${jarNames.length} mods, ${rps.length} resource packs.`);
     onProgress(1);
   }
 
@@ -119,6 +157,32 @@ export class ModpackSync {
     };
     for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
     return dirs;
+  }
+
+  private static extractEtag(headers: Record<string, string | string[] | undefined>): string {
+    const raw = headers['etag'] ?? headers['last-modified'];
+    if (Array.isArray(raw)) return raw[0] ?? '';
+    return typeof raw === 'string' ? raw : '';
+  }
+
+  private static extractJars(zipPath: string, modsDir: string): string[] {
+    const zip = new AdmZip(zipPath);
+    const seen = new Set<string>();
+    const jarNames: string[] = [];
+    for (const entry of zip.getEntries()) {
+      if (entry.isDirectory) continue;
+      const name = path.basename(entry.entryName);
+      if (!name.toLowerCase().endsWith('.jar')) continue;
+      if (seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      const target = ModpackSync.safeJoin(modsDir, name);
+      fs.writeFileSync(target, entry.getData());
+      jarNames.push(name);
+    }
+    if (jarNames.length === 0) {
+      throw new Error('mods.zip ne contient aucun .jar');
+    }
+    return jarNames;
   }
 
   private static parseManifest(text: string, label: string): ManifestEntry[] {
@@ -138,8 +202,8 @@ export class ModpackSync {
       .map((e) => ({ name: e.name, size: e.size }));
   }
 
-  private static hashManifests(modsText: string, rpsText: string): string {
-    return crypto.createHash('sha1').update(modsText).update('||').update(rpsText).digest('hex');
+  private static hashText(text: string): string {
+    return crypto.createHash('sha1').update(text).digest('hex');
   }
 
   private allEntriesPresent(dir: string, entries: ManifestEntry[]): boolean {
@@ -204,12 +268,12 @@ export class ModpackSync {
 
   private cleanupExtras(
     dir: string,
-    kept: ManifestEntry[],
+    keptNames: string[],
     ext: string,
     onStatus: StatusEmitter,
     label: string,
   ): void {
-    const keptLc = new Set(kept.map((e) => e.name.toLowerCase()));
+    const keptLc = new Set(keptNames.map((n) => n.toLowerCase()));
     for (const file of fs.readdirSync(dir)) {
       if (file.toLowerCase().endsWith(ext) && !keptLc.has(file.toLowerCase())) {
         fs.rmSync(path.join(dir, file), { force: true });
@@ -226,13 +290,9 @@ export class ModpackSync {
     }
   }
 
-  private writeCache(gameDir: string, key: string): void {
+  private writeCache(gameDir: string, data: CacheData): void {
     try {
-      fs.writeFileSync(
-        path.join(gameDir, CACHE_FILE),
-        JSON.stringify({ key, syncedAt: Date.now() }),
-        'utf8',
-      );
+      fs.writeFileSync(path.join(gameDir, CACHE_FILE), JSON.stringify(data), 'utf8');
     } catch {
       /* best-effort cache */
     }
