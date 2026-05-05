@@ -6,8 +6,8 @@ dist/
 build/
 out/
 
-# Runtime user config
-config/
+# Runtime user config (root-level only — don't ignore src/main/features/config/)
+/config/
 
 # Claude AI session files
 .claude/
