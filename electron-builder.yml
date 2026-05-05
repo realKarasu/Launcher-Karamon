@@ -19,18 +19,11 @@ nsis:
   createStartMenuShortcut: true
 
 files:
-  - "main.mjs"
-  - "preload.cjs"
-  - "src/**/*"
-  - "core/**/*"
+  - "dist/**/*"
   - "assets/**/*"
   - "node_modules/**/*"
   - "!node_modules/.cache/**"
   - "!**/*.java"
-  - "!*.bat"
-  - "!scripts/**"
-  - "!build/**"
-  - "!dist/**"
   - "!.claude/**"
 
 extraResources:
