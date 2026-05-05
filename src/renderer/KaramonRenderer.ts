@@ -137,14 +137,14 @@ export class KaramonRenderer {
   private async syncMods(): Promise<void> {
     const btn = $button('btn-sync-mods');
     btn.disabled = true;
-    this.console.log('Synchronisation des mods en cours...', 'info');
+    this.console.log('Synchronisation du pack en cours...', 'info');
     const result = await this.api.syncMods();
     btn.disabled = false;
     if (result.ok) {
-      this.console.log('Mods synchronisés avec succès.', 'ok');
-      Toast.show('Mods mis à jour !', 'ok');
+      this.console.log('Pack synchronisé avec succès.', 'ok');
+      Toast.show('Pack mis à jour !', 'ok');
     } else {
-      this.console.log('Erreur sync mods: ' + result.error, 'error');
+      this.console.log('Erreur sync pack: ' + result.error, 'error');
       Toast.show(result.error, 'error');
     }
   }

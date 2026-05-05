@@ -63,7 +63,7 @@ export class MinecraftLauncher {
     const gameDir = this.instanceDir(config);
     this.prepareGameDir(gameDir, config, onStatus);
 
-    onStatus('Synchronisation des mods...');
+    onStatus('Synchronisation du pack...');
     await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, onStatus, (p) => onProgress(p * 0.9));
 
     onStatus('Lancement du launcher Minecraft...');
