@@ -35,7 +35,7 @@ interface MinecraftStatusJson {
 }
 
 export class ServerPing {
-  static readonly PROTOCOL_VERSION = 754;
+  static readonly PROTOCOL_VERSION = 767;
   static readonly HANDSHAKE_NEXT_STATE = 1;
   static readonly STATUS_REQUEST = Buffer.from([0x01, 0x00]);
 

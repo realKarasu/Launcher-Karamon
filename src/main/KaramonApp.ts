@@ -29,6 +29,8 @@ import { WindowManager } from './WindowManager';
 const MC_VERSION = '1.21.1';
 const FABRIC_VERSION = '0.19.2';
 const PROFILE_NAME = 'Karamon';
+const PUBLIC_SERVER_HOST = 'karamon.fr';
+const STATUS_FALLBACK_HOST = 'play.karamon.fr';
 const SERVER_PING_TIMEOUT_MS = 5000;
 const CLOSE_DELAY_MS = 2000;
 
@@ -196,11 +198,36 @@ export class KaramonApp {
 
   private async pingServer(): Promise<PingResult> {
     const cfg = this.config.get();
-    try {
-      return await this.serverPing.ping(cfg.server.host, cfg.server.port, SERVER_PING_TIMEOUT_MS);
-    } catch {
-      return { online: false };
-    }
+    const host = cfg.server.host || PUBLIC_SERVER_HOST;
+    const port = cfg.server.port;
+    const candidates = this.statusPingHosts(host);
+
+    return await new Promise<PingResult>((resolve) => {
+      let settled = false;
+      let remaining = candidates.length;
+
+      const finish = (result: PingResult): void => {
+        if (settled) return;
+        if (result.online || --remaining === 0) {
+          settled = true;
+          resolve(result.online ? result : { online: false });
+        }
+      };
+
+      for (const candidate of candidates) {
+        this.serverPing
+          .ping(candidate, port, SERVER_PING_TIMEOUT_MS)
+          .then(finish)
+          .catch(() => finish({ online: false }));
+      }
+    });
+  }
+
+  private statusPingHosts(host: string): string[] {
+    const normalized = host.trim().toLowerCase();
+    const hosts = [normalized];
+    if (normalized === PUBLIC_SERVER_HOST) hosts.unshift(STATUS_FALLBACK_HOST);
+    return [...new Set(hosts)];
   }
 
   private openInstance(): void {
