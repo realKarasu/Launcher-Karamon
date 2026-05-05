@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
 const distDir   = join(__dirname, '..', 'dist');
 
-const INCLUDE_EXTS = new Set(['.exe', '.yml', '.blockmap']);
+const INCLUDE_EXTS = new Set(['.exe', '.dmg', '.zip', '.yml', '.blockmap']);
 const EXCLUDE      = new Set(['builder-debug.yml', 'builder-effective-config.yaml']);
 
 function hash(file, algo) {
