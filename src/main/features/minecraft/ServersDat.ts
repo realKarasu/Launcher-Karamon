@@ -130,12 +130,13 @@ export class ServersDat {
       ...entries,
     ]);
     const listTag = NBT.named(TAG_LIST, 'servers', listPayload);
-    return zlib.gzipSync(Buffer.concat([Buffer.from([TAG_COMPOUND, 0, 0]), listTag, NBT.END]));
+    return Buffer.concat([Buffer.from([TAG_COMPOUND, 0, 0]), listTag, NBT.END]);
   }
 
   private read(): ServerEntry[] {
     try {
-      const buf = zlib.gunzipSync(fs.readFileSync(this.file));
+      const raw = fs.readFileSync(this.file);
+      const buf = raw[0] === 0x1f && raw[1] === 0x8b ? zlib.gunzipSync(raw) : raw;
       let pos = 3;
       const out: ServerEntry[] = [];
 

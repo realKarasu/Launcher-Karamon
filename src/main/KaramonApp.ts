@@ -112,7 +112,7 @@ export class KaramonApp {
     const cfg = this.config.get();
     const gameDir = this.minecraft.instanceDir(cfg);
     const launcherDir = Paths.minecraftLauncherDir();
-    const host = cfg.server?.host || 'karamon.fr';
+    const host = cfg.server?.host || 'play.karamon.fr';
     const results: string[] = [];
     let ok = true;
 

@@ -10,7 +10,7 @@ import type {
 } from '../modpack/ModpackSync';
 import { ServersDat } from './ServersDat';
 
-const DEFAULT_HOST = 'karamon.fr';
+const DEFAULT_HOST = 'play.karamon.fr';
 const DEFAULT_PROFILE_NAME = 'Karamon';
 const DOWNLOADS_BASE_URL = 'https://karamon.fr/downloads/';
 

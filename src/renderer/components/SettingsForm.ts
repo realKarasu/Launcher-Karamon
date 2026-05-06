@@ -8,7 +8,7 @@ export interface SettingsFormOptions {
 
 export class SettingsForm {
   static readonly DEFAULT_MEMORY_MB = 12288;
-  static readonly DEFAULT_HOST = 'karamon.fr';
+  static readonly DEFAULT_HOST = 'play.karamon.fr';
 
   private readonly api: LauncherApi;
   private readonly onSaved: (updates: AppConfigUpdate) => void;
