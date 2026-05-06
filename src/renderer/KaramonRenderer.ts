@@ -68,6 +68,7 @@ export class KaramonRenderer {
     this.settings.attach($('btn-save-settings'));
     this.wireIpcEvents();
     this.wireUpdateBar();
+    this.wireCheckUpdateButton();
 
     this.console.log('Karamon Launcher démarré.', 'ok');
 
@@ -93,6 +94,44 @@ export class KaramonRenderer {
       if (running) {
         this.console.log('Launcher Minecraft ouvert !', 'ok');
         Toast.show('Launcher Minecraft ouvert !', 'ok');
+      }
+    });
+  }
+
+  private wireCheckUpdateButton(): void {
+    const btn = $button('btn-check-update');
+    const status = $('update-status');
+    const idleLabel = 'Vérifier les mises à jour';
+    let mode: 'check' | 'install' = 'check';
+
+    btn.addEventListener('click', async () => {
+      if (mode === 'install') {
+        this.api.installUpdate();
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Vérification…';
+      status.textContent = 'Vérification en cours…';
+      const result = await this.api.checkForUpdate();
+      btn.disabled = false;
+      switch (result.status) {
+        case 'no-update':
+          status.textContent = `À jour (v${result.currentVersion}).`;
+          btn.textContent = idleLabel;
+          break;
+        case 'downloaded':
+          status.textContent = `Mise à jour ${result.version} prête.`;
+          btn.textContent = 'Installer maintenant';
+          mode = 'install';
+          break;
+        case 'unsupported':
+          status.textContent = 'Indisponible en mode développement.';
+          btn.textContent = idleLabel;
+          break;
+        case 'error':
+          status.textContent = 'Erreur : ' + result.error;
+          btn.textContent = idleLabel;
+          break;
       }
     });
   }

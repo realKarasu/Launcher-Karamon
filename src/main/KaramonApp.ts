@@ -92,6 +92,7 @@ export class KaramonApp {
     ipcMain.on(Channels.windowMaximize, () => this.window.toggleMaximize());
     ipcMain.on(Channels.windowClose, () => this.window.close());
     ipcMain.on(Channels.updateInstall, () => this.updater.installNow());
+    ipcMain.handle(Channels.updateCheck, () => this.updater.check());
 
     ipcMain.handle(Channels.configGet, () => this.config.get());
     ipcMain.handle(Channels.configSet, (_e, updates: AppConfigUpdate) => {

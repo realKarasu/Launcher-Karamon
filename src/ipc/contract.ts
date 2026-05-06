@@ -39,6 +39,12 @@ export interface UpdateInfo {
   version: string;
 }
 
+export type UpdateCheckResult =
+  | { status: 'no-update'; currentVersion: string }
+  | { status: 'downloaded'; version: string }
+  | { status: 'error'; error: string }
+  | { status: 'unsupported' };
+
 export const Channels = {
   windowMinimize: 'window:minimize',
   windowMaximize: 'window:maximize',
@@ -59,6 +65,7 @@ export const Channels = {
   logsExport: 'logs:export',
 
   updateInstall: 'update:install',
+  updateCheck: 'update:check',
 
   eventStatus: 'status:update',
   eventProgress: 'progress:update',
@@ -78,6 +85,7 @@ export interface IpcInvokeContract {
   [Channels.folderInstance]: { req: void; res: void };
   [Channels.folderData]: { req: void; res: void };
   [Channels.logsExport]: { req: string; res: ExportLogsResult };
+  [Channels.updateCheck]: { req: void; res: UpdateCheckResult };
 }
 
 export interface IpcSendContract {
@@ -115,6 +123,7 @@ export interface LauncherApi {
   exportLogs(text: string): Promise<ExportLogsResult>;
 
   installUpdate(): void;
+  checkForUpdate(): Promise<UpdateCheckResult>;
 
   onStatus(cb: (msg: string) => void): void;
   onProgress(cb: (val: number) => void): void;

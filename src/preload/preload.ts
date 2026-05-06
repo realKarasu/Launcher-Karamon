@@ -22,6 +22,7 @@ const api: LauncherApi = {
   exportLogs: (text) => ipcRenderer.invoke(Channels.logsExport, text),
 
   installUpdate: () => ipcRenderer.send(Channels.updateInstall),
+  checkForUpdate: () => ipcRenderer.invoke(Channels.updateCheck),
 
   onStatus: (cb) => {
     ipcRenderer.on(Channels.eventStatus, (_e, msg: string) => cb(msg));
