@@ -17,6 +17,7 @@ import { PlayersSparkline } from './components/PlayersSparkline';
 import { QuickLinks } from './components/QuickLinks';
 import { JvmPresets } from './components/JvmPresets';
 import { ToolsView } from './components/ToolsView';
+import { ShopView } from './components/ShopView';
 import type { PingResult } from '../ipc/contract';
 
 export class KaramonRenderer {
@@ -35,6 +36,7 @@ export class KaramonRenderer {
   private readonly screenshots: ScreenshotsView;
   private readonly sparkline: PlayersSparkline;
   private readonly tools: ToolsView;
+  private readonly shop: ShopView;
   private gameRunning = false;
   private actionRunning = false;
 
@@ -70,6 +72,7 @@ export class KaramonRenderer {
     this.theme = new ThemeSwitcher(api);
     this.screenshots = new ScreenshotsView(api, $('screenshots-grid'));
     this.tools = new ToolsView(api);
+    this.shop = new ShopView(api);
   }
 
   private onPingResult(r: PingResult, prev: 'online' | 'offline' | 'unknown'): void {
@@ -150,6 +153,7 @@ export class KaramonRenderer {
     if (panel === 'settings') void this.stats.refresh();
     if (panel === 'screenshots') void this.screenshots.load();
     if (panel === 'tools') void this.tools.load();
+    if (panel === 'shop') this.shop.attach();
   }
 
   private fireKonami(): void {

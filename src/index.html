@@ -61,6 +61,13 @@
         </svg>
         <span>Captures</span>
       </button>
+      <button class="nav-btn" data-panel="shop">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M3 7h14l-1 9a2 2 0 01-2 2H6a2 2 0 01-2-2L3 7z"/>
+          <path d="M7 7V5a3 3 0 016 0v2"/>
+        </svg>
+        <span>Boutique</span>
+      </button>
       <button class="nav-btn" data-panel="settings">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="10" cy="10" r="3"/>
@@ -196,21 +203,24 @@
         <h2>Outils</h2>
         <p>Sauvegardes et diagnostic</p>
       </div>
+      <div class="tools-body">
 
-      <div class="settings-card">
-        <h3 class="settings-group-title">Sauvegardes (saves + config)</h3>
-        <div class="card-actions">
-          <button class="btn-primary" id="btn-backup-now">Sauvegarder maintenant</button>
-          <span class="field-hint">Les 10 dernières sauvegardes sont conservées.</span>
+        <div class="settings-card">
+          <h3 class="settings-group-title">Sauvegardes (saves + config)</h3>
+          <div class="card-actions">
+            <button class="btn-primary" id="btn-backup-now">Sauvegarder maintenant</button>
+            <span class="field-hint">Les 10 dernières sauvegardes sont conservées.</span>
+          </div>
+          <div id="backup-list" class="backup-list"></div>
         </div>
-        <div id="backup-list" class="backup-list"></div>
-      </div>
 
-      <div class="settings-card">
-        <h3 class="settings-group-title">Rapports de crash</h3>
-        <div id="crash-list" class="crash-list">
-          <p class="empty-hint">Chargement…</p>
+        <div class="settings-card">
+          <h3 class="settings-group-title">Rapports de crash</h3>
+          <div id="crash-list" class="crash-list">
+            <p class="empty-hint">Chargement…</p>
+          </div>
         </div>
+
       </div>
     </section>
 
@@ -222,6 +232,48 @@
       </div>
       <div class="screenshots-grid" id="screenshots-grid">
         <p class="empty-hint">Chargement…</p>
+      </div>
+    </section>
+
+    <!-- SHOP -->
+    <section class="panel" id="panel-shop">
+      <div class="page-header">
+        <h2>Boutique</h2>
+        <p>Grades & clés de lootbox — paiement PayPal</p>
+      </div>
+      <div class="shop-body">
+        <div class="shop-content">
+          <section class="shop-section" id="shop-kits">
+            <div class="shop-section-heading">
+              <p class="kicker">Grades achetables</p>
+              <h3>Grades disponibles</h3>
+              <p class="shop-section-lead">Un seul achat — les avantages sont permanents sur le serveur.</p>
+            </div>
+            <div class="product-grid" id="shop-kits-grid"></div>
+          </section>
+
+          <section class="shop-section" id="shop-keys">
+            <div class="shop-section-heading">
+              <p class="kicker">Clés achetables</p>
+              <h3>Clés Épique, Légendaire et Spéciale</h3>
+              <p class="shop-section-lead">Ouvre des lootboxes avec des drops de plus en plus rares.</p>
+            </div>
+            <div class="key-grid" id="shop-keys-grid"></div>
+          </section>
+        </div>
+
+        <aside class="cart-panel" aria-label="Panier">
+          <div class="cart-panel__head">
+            <div>
+              <p class="kicker">Panier</p>
+              <strong id="shop-cart-count">0 item</strong>
+            </div>
+            <strong class="cart-panel__total" id="shop-cart-total">0,00 €</strong>
+          </div>
+          <div class="cart-panel__body" id="shop-cart-body"></div>
+          <p class="form-error" id="shop-cart-error" hidden></p>
+          <button class="btn-primary cart-checkout" id="shop-checkout-btn" disabled>Panier vide</button>
+        </aside>
       </div>
     </section>
 
@@ -376,6 +428,40 @@
       <button class="lightbox-close" id="crash-modal-close" title="Fermer">×</button>
     </div>
     <pre class="crash-modal-body" id="crash-modal-body"></pre>
+  </div>
+</div>
+
+<div class="checkout-backdrop" id="checkout-backdrop" aria-hidden="true">
+  <div class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+    <form class="checkout-form" id="checkout-form">
+      <div class="checkout-modal__head">
+        <div>
+          <p class="kicker">Paiement PayPal</p>
+          <h2 id="checkout-title">Ton username Minecraft</h2>
+        </div>
+        <button type="button" class="modal-close" id="checkout-close" aria-label="Fermer">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="checkout-help">
+        Le paiement ouvre PayPal avec le montant du panier. Le résumé Username / Items est copié dans le presse-papier — colle-le dans la note PayPal.
+      </p>
+      <label class="checkout-field">
+        <span>Username Minecraft</span>
+        <input type="text" id="checkout-username" placeholder="KaraDieu" autocomplete="off" />
+      </label>
+      <div class="order-preview">
+        <span>Message à coller dans PayPal</span>
+        <pre id="checkout-order"></pre>
+      </div>
+      <div class="checkout-total">
+        <span>Total</span>
+        <strong id="checkout-total-value">0,00 €</strong>
+      </div>
+      <p class="form-error" id="checkout-error" hidden></p>
+      <p class="form-success" id="checkout-success" hidden>✓ Message copié. Colle-le dans la note PayPal.</p>
+      <button class="btn-primary" type="submit" id="checkout-submit">Payer via PayPal</button>
+    </form>
   </div>
 </div>
 

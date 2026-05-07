@@ -103,14 +103,29 @@ export class ServersDat {
   }
 
   ensureServer(ip: string, name: string): void {
-    const servers = fs.existsSync(this.file) ? this.read() : [];
+    const existing = fs.existsSync(this.file) ? this.read() : [];
     const targetHost = ip.split(':')[0];
-    const alreadyPresent = servers.some((s) => (s.ip || '').split(':')[0] === targetHost);
-    if (alreadyPresent) return;
 
-    const updated: ServerEntry[] = [{ ip, name, acceptTextures: 1 }, ...servers];
+    const cleaned = existing.filter((s) => {
+      const host = (s.ip || '').split(':')[0].toLowerCase();
+      return !ServersDat.isLegacyHost(host) || host === targetHost.toLowerCase();
+    });
+
+    const alreadyPresent = cleaned.some(
+      (s) => (s.ip || '').split(':')[0].toLowerCase() === targetHost.toLowerCase(),
+    );
+    const updated: ServerEntry[] = alreadyPresent
+      ? cleaned
+      : [{ ip, name, acceptTextures: 1 }, ...cleaned];
+
+    if (updated.length === existing.length && alreadyPresent) return;
+
     fs.mkdirSync(this.dir, { recursive: true });
     fs.writeFileSync(this.file, this.encode(updated));
+  }
+
+  private static isLegacyHost(host: string): boolean {
+    return host === 'karamon.fr' || host === 'localhost' || host === '127.0.0.1';
   }
 
   private encode(servers: ServerEntry[]): Buffer {
