@@ -45,6 +45,22 @@
         </svg>
         <span>Mods</span>
       </button>
+      <button class="nav-btn" data-panel="tools">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M11 3l3 3-7 7-3-3 7-7z"/>
+          <path d="M14 6l3 3-2 2-3-3z"/>
+          <path d="M3 17l3 3M5 15l3 3"/>
+        </svg>
+        <span>Outils</span>
+      </button>
+      <button class="nav-btn" data-panel="screenshots">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <rect x="2.5" y="4.5" width="15" height="11" rx="1.5"/>
+          <circle cx="10" cy="10" r="3"/>
+          <path d="M7 4.5l1-2h4l1 2"/>
+        </svg>
+        <span>Captures</span>
+      </button>
       <button class="nav-btn" data-panel="settings">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="10" cy="10" r="3"/>
@@ -66,6 +82,7 @@
         </svg>
         <span>Journaux</span>
       </button>
+      <div class="nav-links" id="nav-links"></div>
     </div>
   </nav>
 
@@ -93,7 +110,12 @@
           <span class="server-name">karamon.fr</span>
           <span class="server-status-text" id="status-text">Vérification…</span>
         </div>
-        <span class="server-players" id="server-players"></span>
+        <span class="server-players" id="server-players">
+          <span class="players-tooltip" id="players-tooltip"></span>
+        </span>
+        <svg class="players-sparkline" id="players-sparkline" viewBox="0 0 80 24" preserveAspectRatio="none" aria-hidden="true">
+          <path id="sparkline-path" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </div>
 
       <div class="play-area">
@@ -112,6 +134,21 @@
             <div class="progress-bar" id="progress-bar"></div>
           </div>
           <span class="progress-label" id="progress-label">Prêt</span>
+        </div>
+
+        <div class="stats-strip" id="stats-strip">
+          <div class="stat">
+            <span class="stat-label">Temps de jeu</span>
+            <span class="stat-value" id="stat-playtime">—</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Sessions</span>
+            <span class="stat-value" id="stat-sessions">—</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Dernière fois</span>
+            <span class="stat-value" id="stat-last">—</span>
+          </div>
         </div>
       </div>
     </section>
@@ -138,10 +175,53 @@
             </svg>
             Ouvrir le dossier
           </button>
+          <button class="btn-ghost" id="btn-repair-pack">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 10l4-4 3 3 7-7"/>
+              <path d="M14 2h3v3"/>
+              <path d="M17 12v5a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1h5"/>
+            </svg>
+            Réparer
+          </button>
         </div>
       </div>
       <div class="mods-list" id="mods-list">
         <p class="empty-hint">Synchronisez le pack pour afficher la liste.</p>
+      </div>
+    </section>
+
+    <!-- TOOLS -->
+    <section class="panel" id="panel-tools">
+      <div class="page-header">
+        <h2>Outils</h2>
+        <p>Sauvegardes et diagnostic</p>
+      </div>
+
+      <div class="settings-card">
+        <h3 class="settings-group-title">Sauvegardes (saves + config)</h3>
+        <div class="card-actions">
+          <button class="btn-primary" id="btn-backup-now">Sauvegarder maintenant</button>
+          <span class="field-hint">Les 10 dernières sauvegardes sont conservées.</span>
+        </div>
+        <div id="backup-list" class="backup-list"></div>
+      </div>
+
+      <div class="settings-card">
+        <h3 class="settings-group-title">Rapports de crash</h3>
+        <div id="crash-list" class="crash-list">
+          <p class="empty-hint">Chargement…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREENSHOTS -->
+    <section class="panel" id="panel-screenshots">
+      <div class="page-header">
+        <h2>Captures</h2>
+        <p>Vos screenshots Minecraft (touche F2 en jeu)</p>
+      </div>
+      <div class="screenshots-grid" id="screenshots-grid">
+        <p class="empty-hint">Chargement…</p>
       </div>
     </section>
 
@@ -167,8 +247,14 @@
           </div>
           <div class="field">
             <label>Java</label>
-            <input type="text" id="cfg-java-path" placeholder="C:\Program Files\Java\jdk-21\bin\java.exe" />
-            <span class="field-hint">Laisser vide pour Java système</span>
+            <div class="field-row">
+              <select id="cfg-java-select" class="select-input">
+                <option value="">Java système (auto)</option>
+              </select>
+              <button type="button" class="btn-ghost btn-mini" id="btn-rescan-java">Rescanner</button>
+            </div>
+            <input type="text" id="cfg-java-path" placeholder="Chemin custom (laisser vide pour utiliser la sélection)" />
+            <span class="field-hint">Java 21+ recommandé pour Minecraft 1.21.</span>
           </div>
         </div>
 
@@ -177,11 +263,13 @@
           <div class="field">
             <label>RAM allouée (Mo)</label>
             <input type="number" id="cfg-memory" min="1024" max="32768" step="512" placeholder="12288" />
-            <span class="field-hint">Recommandé : 8192–12288 Mo (8–12 Go)</span>
+            <span class="field-hint" id="ram-hint">Recommandé : 8192–12288 Mo (8–12 Go)</span>
           </div>
           <div class="field">
             <label>Arguments JVM</label>
+            <select id="cfg-jvm-preset" class="select-input" style="margin-bottom: 6px;"></select>
             <input type="text" id="cfg-jvm-args" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
+            <span class="field-hint">Choisissez un preset ou personnalisez les args.</span>
           </div>
           <div class="field">
             <label class="checkbox-label">
@@ -199,6 +287,45 @@
           <div class="field">
             <label>Hôte du serveur</label>
             <input type="text" id="cfg-server-host" placeholder="karamon.fr" />
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h3 class="settings-group-title">Apparence</h3>
+          <div class="field">
+            <label>Thème</label>
+            <div class="theme-picker">
+              <button type="button" class="theme-swatch theme-red" data-theme="red" title="Rouge Karamon">
+                <span class="theme-swatch-name">Rouge</span>
+              </button>
+              <button type="button" class="theme-swatch theme-gold" data-theme="gold" title="Or Cobblemon">
+                <span class="theme-swatch-name">Or</span>
+              </button>
+            </div>
+            <span class="field-hint">Le thème s'applique immédiatement.</span>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h3 class="settings-group-title">Statistiques</h3>
+          <div class="field">
+            <div class="stats-grid">
+              <div><span class="stat-label">Temps total</span><span class="stat-value" id="cfg-stat-playtime">—</span></div>
+              <div><span class="stat-label">Sessions</span><span class="stat-value" id="cfg-stat-sessions">—</span></div>
+              <div><span class="stat-label">Première</span><span class="stat-value" id="cfg-stat-first">—</span></div>
+            </div>
+            <button type="button" class="btn-ghost btn-mini" id="btn-reset-stats" style="margin-top: 12px;">Réinitialiser</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h3 class="settings-group-title">Système</h3>
+          <div class="field">
+            <div class="stats-grid" id="sys-info-grid">
+              <div><span class="stat-label">RAM</span><span class="stat-value" id="sys-ram">—</span></div>
+              <div><span class="stat-label">CPU</span><span class="stat-value" id="sys-cpu">—</span></div>
+              <div><span class="stat-label">OS</span><span class="stat-value" id="sys-os">—</span></div>
+            </div>
           </div>
         </div>
 
@@ -241,6 +368,31 @@
 </div>
 
 <div class="toast-container"></div>
+
+<div class="crash-modal" id="crash-modal" aria-hidden="true">
+  <div class="crash-modal-inner">
+    <div class="crash-modal-header">
+      <span id="crash-modal-title"></span>
+      <button class="lightbox-close" id="crash-modal-close" title="Fermer">×</button>
+    </div>
+    <pre class="crash-modal-body" id="crash-modal-body"></pre>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lightbox-close" id="lightbox-close" title="Fermer">×</button>
+  <img class="lightbox-img" id="lightbox-img" alt="" />
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
+
+<div class="pokeball-overlay" id="pokeball-overlay" aria-hidden="true">
+  <div class="pokeball">
+    <div class="pokeball-top"></div>
+    <div class="pokeball-bottom"></div>
+    <div class="pokeball-band"></div>
+    <div class="pokeball-button"></div>
+  </div>
+</div>
 
 <script src="renderer.js"></script>
 </body>

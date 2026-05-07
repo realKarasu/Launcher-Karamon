@@ -2,13 +2,17 @@ import { app, ipcMain, dialog } from 'electron/main';
 import { shell } from 'electron/common';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import {
   Channels,
   type AppConfigUpdate,
   type ExportLogsResult,
+  type JavaCandidate,
   type LaunchResult,
+  type ModsListResult,
   type PingResult,
   type SetupResult,
+  type SystemInfo,
 } from '../ipc/contract';
 import { Paths } from './shared/Paths';
 import { HttpClient } from './shared/HttpClient';
@@ -24,6 +28,12 @@ import {
   type ServerListSetupResult,
 } from './features/minecraft/MinecraftLauncher';
 import { AutoUpdater } from './features/updater/AutoUpdater';
+import { JavaDetector } from './features/java/JavaDetector';
+import { PlayStats } from './features/stats/PlayStats';
+import { Screenshots } from './features/screenshots/Screenshots';
+import { DiscordRpc } from './features/discord/DiscordRpc';
+import { CrashReports } from './features/crashes/CrashReports';
+import { Backup } from './features/backup/Backup';
 import { WindowManager } from './WindowManager';
 
 const MC_VERSION = '1.21.1';
@@ -59,6 +69,13 @@ export class KaramonApp {
   private readonly updater = new AutoUpdater({
     onReady: (info) => this.window.send(Channels.eventUpdateReady, info),
   });
+  private readonly javaDetector = new JavaDetector();
+  private readonly stats = new PlayStats(this.paths.dataDir);
+  private readonly screenshots = new Screenshots();
+  private readonly crashes = new CrashReports();
+  private readonly backup = new Backup(this.paths.dataDir);
+  private readonly discord = new DiscordRpc();
+  private javaCache: JavaCandidate[] | null = null;
 
   constructor(distDir: string, assetsDir: string) {
     this.window = new WindowManager(distDir, assetsDir);
@@ -66,15 +83,21 @@ export class KaramonApp {
 
   start(): void {
     app.whenReady().then(() => {
+      Screenshots.registerProtocol();
       this.registerIpc();
       this.window.create();
       this.updater.start();
+      void this.discord.connect();
       app.on('activate', () => {
         if (!this.window.exists()) this.window.create();
       });
     });
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') app.quit();
+    });
+    app.on('before-quit', () => {
+      this.stats.endSession();
+      void this.discord.destroy();
     });
   }
 
@@ -107,6 +130,81 @@ export class KaramonApp {
     ipcMain.handle(Channels.folderInstance, () => this.openInstance());
     ipcMain.handle(Channels.folderData, () => this.openDataDir());
     ipcMain.handle(Channels.logsExport, (_e, text: string) => this.exportLogs(text));
+
+    ipcMain.handle(Channels.launchRepair, () => this.repair());
+    ipcMain.handle(Channels.modsList, () => this.listMods());
+    ipcMain.handle(Channels.systemInfo, () => this.getSystemInfo());
+    ipcMain.handle(Channels.javaList, () => this.getJavaList());
+    ipcMain.handle(Channels.statsGet, () => this.stats.read());
+    ipcMain.handle(Channels.statsReset, () => this.stats.reset());
+    ipcMain.handle(Channels.screenshotsList, () =>
+      this.screenshots.list(this.minecraft.instanceDir(this.config.get())),
+    );
+    ipcMain.handle(Channels.screenshotsDelete, (_e, name: string) =>
+      this.screenshots.delete(this.minecraft.instanceDir(this.config.get()), name),
+    );
+    ipcMain.handle(Channels.shellOpenExternal, (_e, url: string) => this.openExternal(url));
+    ipcMain.handle(Channels.crashesList, () =>
+      this.crashes.list(this.minecraft.instanceDir(this.config.get())),
+    );
+    ipcMain.handle(Channels.crashesRead, (_e, name: string) =>
+      this.crashes.read(this.minecraft.instanceDir(this.config.get()), name),
+    );
+    ipcMain.handle(Channels.crashesDelete, (_e, name: string) =>
+      this.crashes.delete(this.minecraft.instanceDir(this.config.get()), name),
+    );
+    ipcMain.handle(Channels.backupCreate, () =>
+      this.backup.create(this.minecraft.instanceDir(this.config.get())),
+    );
+    ipcMain.handle(Channels.backupList, () => this.backup.list());
+    ipcMain.handle(Channels.backupDelete, (_e, name: string) => this.backup.delete(name));
+  }
+
+  private async openExternal(url: string): Promise<void> {
+    if (!/^https?:\/\//i.test(url)) return;
+    await shell.openExternal(url);
+  }
+
+  private listMods(): ModsListResult {
+    const dir = path.join(this.minecraft.instanceDir(this.config.get()), 'mods');
+    return { dir, mods: ModpackSync.listMods(this.minecraft.instanceDir(this.config.get())) };
+  }
+
+  private getSystemInfo(): SystemInfo {
+    return {
+      totalMemMb: Math.round(os.totalmem() / 1024 / 1024),
+      freeMemMb: Math.round(os.freemem() / 1024 / 1024),
+      cpuCount: os.cpus().length,
+      platform: process.platform,
+      arch: process.arch,
+      appVersion: app.getVersion(),
+    };
+  }
+
+  private async getJavaList(): Promise<JavaCandidate[]> {
+    if (!this.javaCache) {
+      this.javaCache = await this.javaDetector.detect();
+    }
+    return this.javaCache;
+  }
+
+  private async repair(): Promise<LaunchResult> {
+    const cfg = this.config.get();
+    const onStatus = this.statusEmitter();
+    const onProgress = this.progressEmitter();
+    try {
+      onProgress(0);
+      onStatus('Réparation du pack...');
+      await this.minecraft.repair(cfg, onStatus, onProgress);
+      onProgress(1);
+      onStatus('Pack réparé.');
+      return { ok: true };
+    } catch (e) {
+      const msg = (e as Error).message;
+      onStatus('Erreur de réparation: ' + msg);
+      onProgress(0);
+      return { ok: false, error: msg };
+    }
   }
 
   private async setupMinecraft(): Promise<SetupResult> {
@@ -167,6 +265,8 @@ export class KaramonApp {
     try {
       onProgress(0);
       await this.minecraft.launch(cfg, onStatus, onProgress);
+      this.stats.startSession();
+      this.discord.setPlaying();
       this.window.send(Channels.eventGameState, { running: true });
       onStatus('Launcher Minecraft ouvert !');
       if (cfg.closeLauncherOnGameStart) setTimeout(() => this.window.close(), CLOSE_DELAY_MS);

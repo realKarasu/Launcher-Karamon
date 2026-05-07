@@ -81,6 +81,18 @@ export class MinecraftLauncher {
     await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, onStatus, onProgress);
   }
 
+  async repair(
+    config: AppConfig,
+    onStatus: StatusEmitter,
+    onProgress: ProgressEmitter,
+  ): Promise<void> {
+    const gameDir = this.instanceDir(config);
+    this.prepareGameDir(gameDir, config, onStatus);
+    onStatus('Réparation : invalidation du cache...');
+    this.modpackSync.invalidateCache(gameDir);
+    await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, onStatus, onProgress);
+  }
+
   private prepareGameDir(gameDir: string, config: AppConfig, onStatus: StatusEmitter): void {
     fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
     const host = config.server?.host || DEFAULT_HOST;

@@ -29,7 +29,7 @@ class VarInt {
 }
 
 interface MinecraftStatusJson {
-  players?: { online?: number; max?: number };
+  players?: { online?: number; max?: number; sample?: { name: string; id?: string }[] };
   description?: string | { text?: string };
   version?: { name?: string };
 }
@@ -105,6 +105,7 @@ export class ServerPing {
       maxPlayers: data.players?.max ?? 0,
       motd,
       version: data.version?.name ?? '',
+      sample: data.players?.sample?.map((s) => ({ name: s.name, id: s.id })),
     };
   }
 }

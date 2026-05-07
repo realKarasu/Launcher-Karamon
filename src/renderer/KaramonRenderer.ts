@@ -1,5 +1,5 @@
 import type { LauncherApi } from '../ipc/contract';
-import { $, $button } from './util/dom';
+import { $, $button, $opt } from './util/dom';
 import { Toast } from './components/Toast';
 import { ConsoleView } from './components/ConsoleView';
 import { ProgressBar } from './components/ProgressBar';
@@ -8,9 +8,20 @@ import { ServerStatusPanel } from './components/ServerStatusPanel';
 import { SettingsForm } from './components/SettingsForm';
 import { Navigation } from './components/Navigation';
 import { WindowControls } from './components/WindowControls';
+import { ModsList } from './components/ModsList';
+import { StatsView } from './components/StatsView';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { Konami } from './components/Konami';
+import { ScreenshotsView } from './components/ScreenshotsView';
+import { PlayersSparkline } from './components/PlayersSparkline';
+import { QuickLinks } from './components/QuickLinks';
+import { JvmPresets } from './components/JvmPresets';
+import { ToolsView } from './components/ToolsView';
+import type { PingResult } from '../ipc/contract';
 
 export class KaramonRenderer {
   static readonly SERVER_PING_INTERVAL_MS = 30000;
+  static readonly POKEBALL_ANIM_MS = 2200;
 
   private readonly api: LauncherApi;
   private readonly console: ConsoleView;
@@ -18,6 +29,12 @@ export class KaramonRenderer {
   private readonly playButton: PlayButton;
   private readonly serverStatus: ServerStatusPanel;
   private readonly settings: SettingsForm;
+  private readonly mods: ModsList;
+  private readonly stats: StatsView;
+  private readonly theme: ThemeSwitcher;
+  private readonly screenshots: ScreenshotsView;
+  private readonly sparkline: PlayersSparkline;
+  private readonly tools: ToolsView;
   private gameRunning = false;
   private actionRunning = false;
 
@@ -30,11 +47,16 @@ export class KaramonRenderer {
     });
     this.progress = new ProgressBar($('progress-bar'), $('progress-label'));
     this.playButton = new PlayButton($('btn-play'), $('play-label'));
+    this.sparkline = new PlayersSparkline(
+      document.getElementById('sparkline-path') as unknown as SVGPathElement,
+    );
     this.serverStatus = new ServerStatusPanel({
       dotEl: $('status-dot'),
       textEl: $('status-text'),
       playersEl: $('server-players'),
+      tooltipEl: $opt('players-tooltip'),
       ping: () => api.pingServer(),
+      onResult: (r, prev) => this.onPingResult(r, prev),
     });
     this.settings = new SettingsForm({
       api,
@@ -43,10 +65,36 @@ export class KaramonRenderer {
         this.console.log('Paramètres sauvegardés.', 'ok');
       },
     });
+    this.mods = new ModsList(api, $('mods-list'));
+    this.stats = new StatsView(api);
+    this.theme = new ThemeSwitcher(api);
+    this.screenshots = new ScreenshotsView(api, $('screenshots-grid'));
+    this.tools = new ToolsView(api);
+  }
+
+  private onPingResult(r: PingResult, prev: 'online' | 'offline' | 'unknown'): void {
+    this.sparkline.push(r.online ? r.players : null);
+    if (prev === 'unknown') return;
+    if (r.online && prev === 'offline') {
+      this.notify('Serveur en ligne', 'Karamon est de retour !');
+    } else if (!r.online && prev === 'online') {
+      this.notify('Serveur hors ligne', 'Karamon vient de s’arrêter.');
+    }
+  }
+
+  private notify(title: string, body: string): void {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then((p) => {
+        if (p === 'granted') new Notification(title, { body });
+      });
+    }
   }
 
   async start(): Promise<void> {
-    Navigation.attach();
+    Navigation.attach((panel) => this.onPanelChange(panel));
     WindowControls.attach(this.api);
 
     $('console-toggle').addEventListener('click', () => this.console.toggle());
@@ -64,15 +112,27 @@ export class KaramonRenderer {
       e.stopPropagation();
       this.console.clear();
     });
+    $('btn-repair-pack').addEventListener('click', () => this.repair());
+    $('btn-reset-stats').addEventListener('click', () => this.resetStats());
 
+    this.theme.attach();
+    QuickLinks.render(this.api, $('nav-links'));
+    JvmPresets.attach();
     this.settings.attach($('btn-save-settings'));
     this.wireIpcEvents();
     this.wireUpdateBar();
     this.wireCheckUpdateButton();
+    Konami.attach(() => this.fireKonami());
 
     this.console.log('Karamon Launcher démarré.', 'ok');
 
-    await this.settings.load();
+    const cfg = await this.settings.load();
+    JvmPresets.syncFromArgs();
+    this.theme.fromConfig(cfg);
+
+    void this.settings.loadSystemInfo();
+    void this.settings.populateJava();
+    void this.stats.refresh();
 
     const setup = await this.api.setupMinecraft();
     this.console.log('Instance: ' + setup.path, setup.ok ? 'ok' : 'warn');
@@ -82,6 +142,22 @@ export class KaramonRenderer {
     setInterval(() => this.serverStatus.refresh(), KaramonRenderer.SERVER_PING_INTERVAL_MS);
 
     this.console.log('Prêt.', 'ok');
+  }
+
+  private onPanelChange(panel: string): void {
+    if (panel === 'mods') void this.mods.load();
+    if (panel === 'home') void this.stats.refresh();
+    if (panel === 'settings') void this.stats.refresh();
+    if (panel === 'screenshots') void this.screenshots.load();
+    if (panel === 'tools') void this.tools.load();
+  }
+
+  private fireKonami(): void {
+    const overlay = $('pokeball-overlay');
+    overlay.classList.remove('fire');
+    void overlay.offsetWidth;
+    overlay.classList.add('fire');
+    setTimeout(() => overlay.classList.remove('fire'), KaramonRenderer.POKEBALL_ANIM_MS);
   }
 
   private wireIpcEvents(): void {
@@ -94,6 +170,7 @@ export class KaramonRenderer {
       if (running) {
         this.console.log('Launcher Minecraft ouvert !', 'ok');
         Toast.show('Launcher Minecraft ouvert !', 'ok');
+        void this.stats.refresh();
       }
     });
   }
@@ -182,10 +259,34 @@ export class KaramonRenderer {
     if (result.ok) {
       this.console.log('Pack synchronisé avec succès.', 'ok');
       Toast.show('Pack mis à jour !', 'ok');
+      this.mods.invalidate();
+      void this.mods.load(true);
     } else {
       this.console.log('Erreur sync pack: ' + result.error, 'error');
       Toast.show(result.error, 'error');
     }
+  }
+
+  private async repair(): Promise<void> {
+    const btn = $button('btn-repair-pack');
+    btn.disabled = true;
+    this.console.log('Réparation du pack en cours...', 'info');
+    const result = await this.api.repair();
+    btn.disabled = false;
+    if (result.ok) {
+      this.console.log('Pack réparé.', 'ok');
+      Toast.show('Pack réparé !', 'ok');
+      this.mods.invalidate();
+      void this.mods.load(true);
+    } else {
+      this.console.log('Erreur réparation: ' + result.error, 'error');
+      Toast.show(result.error, 'error');
+    }
+  }
+
+  private async resetStats(): Promise<void> {
+    await this.stats.reset();
+    Toast.show('Statistiques réinitialisées.', 'ok');
   }
 
   private async exportLogs(e: Event): Promise<void> {

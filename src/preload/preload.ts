@@ -24,6 +24,22 @@ const api: LauncherApi = {
   installUpdate: () => ipcRenderer.send(Channels.updateInstall),
   checkForUpdate: () => ipcRenderer.invoke(Channels.updateCheck),
 
+  repair: () => ipcRenderer.invoke(Channels.launchRepair),
+  listMods: () => ipcRenderer.invoke(Channels.modsList),
+  systemInfo: () => ipcRenderer.invoke(Channels.systemInfo),
+  listJava: () => ipcRenderer.invoke(Channels.javaList),
+  getStats: () => ipcRenderer.invoke(Channels.statsGet),
+  resetStats: () => ipcRenderer.invoke(Channels.statsReset),
+  listScreenshots: () => ipcRenderer.invoke(Channels.screenshotsList),
+  deleteScreenshot: (name) => ipcRenderer.invoke(Channels.screenshotsDelete, name),
+  openExternal: (url) => ipcRenderer.invoke(Channels.shellOpenExternal, url),
+  listCrashes: () => ipcRenderer.invoke(Channels.crashesList),
+  readCrash: (name) => ipcRenderer.invoke(Channels.crashesRead, name),
+  deleteCrash: (name) => ipcRenderer.invoke(Channels.crashesDelete, name),
+  createBackup: () => ipcRenderer.invoke(Channels.backupCreate),
+  listBackups: () => ipcRenderer.invoke(Channels.backupList),
+  deleteBackup: (name) => ipcRenderer.invoke(Channels.backupDelete, name),
+
   onStatus: (cb) => {
     ipcRenderer.on(Channels.eventStatus, (_e, msg: string) => cb(msg));
   },

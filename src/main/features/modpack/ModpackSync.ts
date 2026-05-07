@@ -57,6 +57,36 @@ export class ModpackSync {
     this.optionsWriterFactory = optionsWriterFactory;
   }
 
+  invalidateCache(gameDir: string): void {
+    const cachePath = path.join(gameDir, CACHE_FILE);
+    try {
+      fs.rmSync(cachePath, { force: true });
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  static listMods(gameDir: string): { name: string; size: number }[] {
+    const dir = path.join(gameDir, 'mods');
+    try {
+      return fs
+        .readdirSync(dir)
+        .filter((f) => f.toLowerCase().endsWith('.jar'))
+        .map((name) => {
+          let size = 0;
+          try {
+            size = fs.statSync(path.join(dir, name)).size;
+          } catch {
+            /* ignore */
+          }
+          return { name, size };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
+    }
+  }
+
   async sync(
     baseUrl: string,
     gameDir: string,

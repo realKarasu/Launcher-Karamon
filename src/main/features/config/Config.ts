@@ -10,6 +10,7 @@ const DEFAULTS: AppConfig = Object.freeze({
   jvmArgs: '',
   closeLauncherOnGameStart: false,
   server: { host: 'play.karamon.fr', port: 25565 },
+  theme: 'red',
 }) as AppConfig;
 
 export class Config {
