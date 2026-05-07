@@ -5,6 +5,7 @@ publish:
   provider: github
   owner: realKarasu
   repo: Launcher-Karamon
+  releaseType: release
 
 win:
   target:
