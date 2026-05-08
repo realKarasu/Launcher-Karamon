@@ -19,6 +19,10 @@ export class PlayButton {
     this.apply('play-btn running', 'EN JEU', '1');
   }
 
+  setLoginRequired(): void {
+    this.apply('play-btn login-required', 'SE CONNECTER', '1');
+  }
+
   private apply(className: string, label: string, opacity: string): void {
     this.btn.className = className;
     this.label.textContent = label;

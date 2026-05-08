@@ -154,6 +154,53 @@ body::before {
 .tb-btn:hover { background: var(--surface-2); color: var(--text); }
 .tb-close:hover { background: var(--red); color: #fff; }
 
+.account-chip {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  margin-right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 2px 12px 2px 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+  max-width: 220px;
+}
+.account-chip:hover { background: var(--surface); border-color: var(--accent-dim); color: var(--text); }
+.account-chip.signed-in { border-color: var(--accent-dim); color: var(--text); }
+.account-chip.loading { opacity: 0.6; cursor: progress; }
+
+.account-chip .chip-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.account-chip .chip-avatar img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.account-chip .chip-avatar-empty {
+  color: var(--text-3);
+}
+.account-chip .chip-avatar-empty svg { width: 14px; height: 14px; }
+
+.account-chip .chip-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
 /* ── App layout ─────────────────────────────────────────────────────────────── */
 .app {
   position: fixed;

@@ -127,6 +127,19 @@ export interface BackupListResult {
   backups: BackupEntry[];
 }
 
+export interface MinecraftProfile {
+  id: string;
+  name: string;
+}
+
+export type AuthLoginResult =
+  | { ok: true; profile: MinecraftProfile }
+  | { ok: false; error: string };
+
+export type AuthSessionResult =
+  | { signedIn: true; profile: MinecraftProfile }
+  | { signedIn: false };
+
 export const Channels = {
   windowMinimize: 'window:minimize',
   windowMaximize: 'window:maximize',
@@ -165,6 +178,10 @@ export const Channels = {
   backupList: 'backup:list',
   backupDelete: 'backup:delete',
 
+  authLogin: 'auth:login',
+  authLogout: 'auth:logout',
+  authGetSession: 'auth:get-session',
+
   eventStatus: 'status:update',
   eventProgress: 'progress:update',
   eventGameState: 'game:state',
@@ -199,6 +216,9 @@ export interface IpcInvokeContract {
   [Channels.backupCreate]: { req: void; res: BackupEntry };
   [Channels.backupList]: { req: void; res: BackupListResult };
   [Channels.backupDelete]: { req: string; res: BackupListResult };
+  [Channels.authLogin]: { req: void; res: AuthLoginResult };
+  [Channels.authLogout]: { req: void; res: void };
+  [Channels.authGetSession]: { req: void; res: AuthSessionResult };
 }
 
 export interface IpcSendContract {
@@ -253,6 +273,10 @@ export interface LauncherApi {
   createBackup(): Promise<BackupEntry>;
   listBackups(): Promise<BackupListResult>;
   deleteBackup(name: string): Promise<BackupListResult>;
+
+  authLogin(): Promise<AuthLoginResult>;
+  authLogout(): Promise<void>;
+  authGetSession(): Promise<AuthSessionResult>;
 
   onStatus(cb: (msg: string) => void): void;
   onProgress(cb: (val: number) => void): void;

@@ -1,6 +1,6 @@
 {
   "name": "karamon-launcher",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Karamon Minecraft Launcher",
   "author": "Karamon",
   "main": "dist/main.cjs",

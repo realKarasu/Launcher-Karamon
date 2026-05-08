@@ -1,7 +1,5 @@
-import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import type { AppConfig } from '../../../ipc/contract';
 import type {
   ModpackSync,
@@ -9,24 +7,24 @@ import type {
   ProgressEmitter,
 } from '../modpack/ModpackSync';
 import { ServersDat } from './ServersDat';
+import type { GameLauncher } from './GameLauncher';
 
 const DEFAULT_HOST = 'play.karamon.fr';
 const DEFAULT_PROFILE_NAME = 'Karamon';
 const DOWNLOADS_BASE_URL = 'https://karamon.fr/downloads/';
 
-const WIN_EXE_CANDIDATES = [
-  'C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe',
-  'C:\\Program Files\\Minecraft Launcher\\MinecraftLauncher.exe',
-  path.join(os.homedir(), 'AppData', 'Local', 'Minecraft Launcher', 'MinecraftLauncher.exe'),
-  path.join(os.homedir(), 'AppData', 'Roaming', 'Minecraft', 'MinecraftLauncher.exe'),
-];
-const UWP_APP_ID = 'Microsoft.4297127D64EC6_8wekyb3d8bbwe!Minecraft';
-const MAC_APP_CANDIDATES = ['/Applications/Minecraft.app', '/Applications/Minecraft Launcher.app'];
-
 export interface MinecraftLauncherOptions {
   mcLauncherDir: string;
   modpackSync: ModpackSync;
   serversDatFactory: (dir: string) => ServersDat;
+  gameLauncher: GameLauncher;
+}
+
+export interface LaunchEvents {
+  onStatus: StatusEmitter;
+  onProgress: ProgressEmitter;
+  onLog: (line: string) => void;
+  onExit: (code: number | null) => void;
 }
 
 export type ServerListSetupResult =
@@ -37,15 +35,21 @@ export class MinecraftLauncher {
   private readonly mcLauncherDir: string;
   private readonly modpackSync: ModpackSync;
   private readonly serversDatFactory: (dir: string) => ServersDat;
+  private readonly gameLauncher: GameLauncher;
 
-  constructor({ mcLauncherDir, modpackSync, serversDatFactory }: MinecraftLauncherOptions) {
+  constructor({ mcLauncherDir, modpackSync, serversDatFactory, gameLauncher }: MinecraftLauncherOptions) {
     this.mcLauncherDir = mcLauncherDir;
     this.modpackSync = modpackSync;
     this.serversDatFactory = serversDatFactory;
+    this.gameLauncher = gameLauncher;
   }
 
   instanceDir(config: AppConfig): string {
     return config.mcGameDir || this.mcLauncherDir;
+  }
+
+  isRunning(): boolean {
+    return this.gameLauncher.isRunning();
   }
 
   ensureServerLists(gameDir: string, host: string, name: string): ServerListSetupResult[] {
@@ -59,16 +63,27 @@ export class MinecraftLauncher {
     });
   }
 
-  async launch(config: AppConfig, onStatus: StatusEmitter, onProgress: ProgressEmitter): Promise<void> {
+  async launch(config: AppConfig, events: LaunchEvents): Promise<void> {
     const gameDir = this.instanceDir(config);
-    this.prepareGameDir(gameDir, config, onStatus);
+    this.prepareGameDir(gameDir, config, events.onStatus);
 
-    onStatus('Synchronisation du pack...');
-    await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, onStatus, (p) => onProgress(p * 0.9));
+    events.onStatus('Synchronisation du pack...');
+    await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, events.onStatus, (p) => events.onProgress(p * 0.3));
 
-    onStatus('Lancement du launcher Minecraft...');
-    onProgress(1);
-    this.spawnLauncher(config.minecraftLauncherPath);
+    await this.gameLauncher.launch(
+      {
+        javaPath: config.javaPath,
+        memoryMb: config.memoryMb,
+        jvmArgs: config.jvmArgs,
+        gameDir,
+      },
+      {
+        onStatus: events.onStatus,
+        onProgress: (p) => events.onProgress(0.3 + p * 0.7),
+        onLog: events.onLog,
+        onExit: events.onExit,
+      },
+    );
   }
 
   async syncOnly(
@@ -113,44 +128,5 @@ export class MinecraftLauncher {
       dirs.push(dir);
     }
     return dirs;
-  }
-
-  private spawnLauncher(customPath: string): void {
-    if (process.platform === 'darwin') {
-      this.spawnLauncherMac(customPath);
-      return;
-    }
-    this.spawnLauncherWin(customPath);
-  }
-
-  private spawnLauncherWin(customPath: string): void {
-    const exe = MinecraftLauncher.findWinExe(customPath);
-    if (exe) {
-      spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
-      return;
-    }
-    spawn('explorer.exe', [`shell:AppsFolder\\${UWP_APP_ID}`], {
-      detached: true,
-      stdio: 'ignore',
-    }).unref();
-  }
-
-  private spawnLauncherMac(customPath: string): void {
-    const target = MinecraftLauncher.findMacApp(customPath);
-    if (target) {
-      spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
-      return;
-    }
-    spawn('open', ['-a', 'Minecraft'], { detached: true, stdio: 'ignore' }).unref();
-  }
-
-  private static findWinExe(customPath: string): string | null {
-    if (customPath && fs.existsSync(customPath)) return customPath;
-    return WIN_EXE_CANDIDATES.find((p) => fs.existsSync(p)) ?? null;
-  }
-
-  private static findMacApp(customPath: string): string | null {
-    if (customPath && fs.existsSync(customPath)) return customPath;
-    return MAC_APP_CANDIDATES.find((p) => fs.existsSync(p)) ?? null;
   }
 }

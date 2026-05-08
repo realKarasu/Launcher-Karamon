@@ -1,4 +1,4 @@
-import type { LauncherApi } from '../ipc/contract';
+import type { LauncherApi, MinecraftProfile } from '../ipc/contract';
 import { $, $button, $opt } from './util/dom';
 import { Toast } from './components/Toast';
 import { ConsoleView } from './components/ConsoleView';
@@ -18,6 +18,7 @@ import { QuickLinks } from './components/QuickLinks';
 import { JvmPresets } from './components/JvmPresets';
 import { ToolsView } from './components/ToolsView';
 import { ShopView } from './components/ShopView';
+import { AccountChip } from './components/AccountChip';
 import type { PingResult } from '../ipc/contract';
 
 export class KaramonRenderer {
@@ -37,8 +38,10 @@ export class KaramonRenderer {
   private readonly sparkline: PlayersSparkline;
   private readonly tools: ToolsView;
   private readonly shop: ShopView;
+  private readonly accountChip: AccountChip;
   private gameRunning = false;
   private actionRunning = false;
+  private authProfile: MinecraftProfile | null = null;
 
   constructor(api: LauncherApi) {
     this.api = api;
@@ -73,6 +76,7 @@ export class KaramonRenderer {
     this.screenshots = new ScreenshotsView(api, $('screenshots-grid'));
     this.tools = new ToolsView(api);
     this.shop = new ShopView(api);
+    this.accountChip = new AccountChip($('account-chip'), () => void this.handleLogout());
   }
 
   private onPingResult(r: PingResult, prev: 'online' | 'offline' | 'unknown'): void {
@@ -126,6 +130,7 @@ export class KaramonRenderer {
     this.wireUpdateBar();
     this.wireCheckUpdateButton();
     Konami.attach(() => this.fireKonami());
+    await this.refreshAuthState();
 
     this.console.log('Karamon Launcher démarré.', 'ok');
 
@@ -232,11 +237,55 @@ export class KaramonRenderer {
   private refreshPlayButton(): void {
     if (this.actionRunning) return this.playButton.setLoading();
     if (this.gameRunning) return this.playButton.setRunning();
+    if (!this.authProfile) return this.playButton.setLoginRequired();
     this.playButton.setIdle();
+  }
+
+  private async refreshAuthState(): Promise<void> {
+    const session = await this.api.authGetSession();
+    this.authProfile = session.signedIn ? session.profile : null;
+    this.accountChip.render(this.authProfile);
+    this.refreshPlayButton();
+  }
+
+  private async handleLogin(): Promise<void> {
+    if (this.actionRunning) return;
+    this.actionRunning = true;
+    this.playButton.setLoading();
+    try {
+      const result = await this.api.authLogin();
+      if (result.ok) {
+        this.authProfile = result.profile;
+        this.accountChip.render(this.authProfile);
+        Toast.show(`Connecté en tant que ${result.profile.name}.`, 'ok');
+        this.console.log(`Connecté : ${result.profile.name}`, 'ok');
+      } else {
+        Toast.show(result.error, 'error');
+        this.console.log('Erreur connexion: ' + result.error, 'error');
+      }
+    } finally {
+      this.actionRunning = false;
+      this.refreshPlayButton();
+    }
+  }
+
+  private async handleLogout(): Promise<void> {
+    if (!this.authProfile) return;
+    const ok = window.confirm(`Se déconnecter de ${this.authProfile.name} ?`);
+    if (!ok) return;
+    await this.api.authLogout();
+    this.authProfile = null;
+    this.accountChip.render(null);
+    this.refreshPlayButton();
+    Toast.show('Déconnecté.', 'ok');
   }
 
   private async play(): Promise<void> {
     if (this.actionRunning) return;
+    if (!this.authProfile) {
+      void this.handleLogin();
+      return;
+    }
     if (this.gameRunning) {
       Toast.show('Minecraft est déjà en cours.', 'error');
       return;

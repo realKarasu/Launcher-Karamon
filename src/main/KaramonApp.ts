@@ -6,6 +6,8 @@ import os from 'os';
 import {
   Channels,
   type AppConfigUpdate,
+  type AuthLoginResult,
+  type AuthSessionResult,
   type ExportLogsResult,
   type JavaCandidate,
   type LaunchResult,
@@ -34,6 +36,9 @@ import { Screenshots } from './features/screenshots/Screenshots';
 import { DiscordRpc } from './features/discord/DiscordRpc';
 import { CrashReports } from './features/crashes/CrashReports';
 import { Backup } from './features/backup/Backup';
+import { AuthSession } from './features/auth/AuthSession';
+import { TokenStore } from './features/auth/TokenStore';
+import { GameLauncher } from './features/minecraft/GameLauncher';
 import { WindowManager } from './WindowManager';
 
 const MC_VERSION = '1.21.1';
@@ -59,10 +64,19 @@ export class KaramonApp {
     http: this.http,
     optionsWriterFactory: (dir) => new OptionsWriter(dir),
   });
+  private readonly auth = new AuthSession(new TokenStore(this.paths.authCache));
+  private readonly gameLauncher = new GameLauncher({
+    paths: this.paths,
+    http: this.http,
+    auth: this.auth,
+    mcVersion: MC_VERSION,
+    fabricVersion: FABRIC_VERSION,
+  });
   private readonly minecraft = new MinecraftLauncher({
     mcLauncherDir: Paths.minecraftLauncherDir(),
     modpackSync: this.modpackSync,
     serversDatFactory: (dir) => new ServersDat(dir),
+    gameLauncher: this.gameLauncher,
   });
 
   private readonly window: WindowManager;
@@ -74,11 +88,18 @@ export class KaramonApp {
   private readonly screenshots = new Screenshots();
   private readonly crashes = new CrashReports();
   private readonly backup = new Backup(this.paths.dataDir);
-  private readonly discord = new DiscordRpc();
+  private readonly discord: DiscordRpc;
   private javaCache: JavaCandidate[] | null = null;
 
   constructor(distDir: string, assetsDir: string) {
     this.window = new WindowManager(distDir, assetsDir);
+    const cfg = this.config.get();
+    this.discord = new DiscordRpc({
+      serverHost: cfg.server?.host || 'play.karamon.fr',
+      serverPort: cfg.server?.port || 25565,
+      pinger: this.serverPing,
+      log: (msg) => this.window.send(Channels.eventStatus, msg),
+    });
   }
 
   start(): void {
@@ -87,7 +108,7 @@ export class KaramonApp {
       this.registerIpc();
       this.window.create();
       this.updater.start();
-      void this.discord.connect();
+      this.discord.start();
       app.on('activate', () => {
         if (!this.window.exists()) this.window.create();
       });
@@ -158,6 +179,24 @@ export class KaramonApp {
     );
     ipcMain.handle(Channels.backupList, () => this.backup.list());
     ipcMain.handle(Channels.backupDelete, (_e, name: string) => this.backup.delete(name));
+
+    ipcMain.handle(Channels.authLogin, () => this.authLogin());
+    ipcMain.handle(Channels.authLogout, () => this.auth.logout());
+    ipcMain.handle(Channels.authGetSession, () => this.authGetSession());
+  }
+
+  private async authLogin(): Promise<AuthLoginResult> {
+    try {
+      const profile = await this.auth.login();
+      return { ok: true, profile };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  private authGetSession(): AuthSessionResult {
+    const profile = this.auth.cachedProfile();
+    return profile ? { signedIn: true, profile } : { signedIn: false };
   }
 
   private async openExternal(url: string): Promise<void> {
@@ -264,11 +303,24 @@ export class KaramonApp {
     const onProgress = this.progressEmitter();
     try {
       onProgress(0);
-      await this.minecraft.launch(cfg, onStatus, onProgress);
+      await this.minecraft.launch(cfg, {
+        onStatus,
+        onProgress,
+        onLog: (line) => this.window.send(Channels.eventStatus, line),
+        onExit: (code) => {
+          this.stats.endSession();
+          this.discord.setMenu();
+          this.window.send(Channels.eventGameState, { running: false });
+          this.window.send(
+            Channels.eventStatus,
+            code === 0 ? 'Minecraft fermé.' : `Minecraft fermé (code ${code}).`,
+          );
+        },
+      });
       this.stats.startSession();
       this.discord.setPlaying();
       this.window.send(Channels.eventGameState, { running: true });
-      onStatus('Launcher Minecraft ouvert !');
+      onStatus('Minecraft lancé !');
       if (cfg.closeLauncherOnGameStart) setTimeout(() => this.window.close(), CLOSE_DELAY_MS);
       return { ok: true };
     } catch (e) {
