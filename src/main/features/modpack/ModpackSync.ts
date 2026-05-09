@@ -126,7 +126,26 @@ export class ModpackSync {
       dirs.shaderpacks,
     );
 
+    const applyOptions = (): void => {
+      const writer = this.optionsWriterFactory(gameDir);
+      for (const rp of resourcePacks.entries) {
+        try {
+          writer.ensureResourcePack(rp.name);
+        } catch {
+          /* non-fatal */
+        }
+      }
+      for (const sp of shaderPacks.entries) {
+        try {
+          writer.ensureShader(sp.name);
+        } catch {
+          /* non-fatal */
+        }
+      }
+    };
+
     if (modsUpToDate && resourcePacksUpToDate && shaderPacksUpToDate) {
+      applyOptions();
       onStatus('Pack déjà à jour, aucun téléchargement nécessaire.');
       onProgress(1);
       return;
@@ -188,21 +207,7 @@ export class ModpackSync {
       onProgress(0.97);
     }
 
-    const writer = this.optionsWriterFactory(gameDir);
-    for (const rp of resourcePacks.entries) {
-      try {
-        writer.ensureResourcePack(rp.name);
-      } catch {
-        /* non-fatal */
-      }
-    }
-    for (const sp of shaderPacks.entries) {
-      try {
-        writer.ensureShader(sp.name);
-      } catch {
-        /* non-fatal */
-      }
-    }
+    applyOptions();
 
     this.writeCache(gameDir, {
       modsEtag: etag,

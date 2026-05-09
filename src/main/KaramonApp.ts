@@ -31,6 +31,7 @@ import {
 } from './features/minecraft/MinecraftLauncher';
 import { AutoUpdater } from './features/updater/AutoUpdater';
 import { JavaDetector } from './features/java/JavaDetector';
+import { JavaProvisioner } from './features/java/JavaProvisioner';
 import { PlayStats } from './features/stats/PlayStats';
 import { Screenshots } from './features/screenshots/Screenshots';
 import { DiscordRpc } from './features/discord/DiscordRpc';
@@ -72,18 +73,20 @@ export class KaramonApp {
     mcVersion: MC_VERSION,
     fabricVersion: FABRIC_VERSION,
   });
+  private readonly javaDetector = new JavaDetector();
+  private readonly javaProvisioner = new JavaProvisioner(this.paths, this.http, this.javaDetector);
   private readonly minecraft = new MinecraftLauncher({
     mcLauncherDir: Paths.minecraftLauncherDir(),
     modpackSync: this.modpackSync,
     serversDatFactory: (dir) => new ServersDat(dir),
     gameLauncher: this.gameLauncher,
+    javaProvisioner: this.javaProvisioner,
   });
 
   private readonly window: WindowManager;
   private readonly updater = new AutoUpdater({
     onReady: (info) => this.window.send(Channels.eventUpdateReady, info),
   });
-  private readonly javaDetector = new JavaDetector();
   private readonly stats = new PlayStats(this.paths.dataDir);
   private readonly screenshots = new Screenshots();
   private readonly crashes = new CrashReports();

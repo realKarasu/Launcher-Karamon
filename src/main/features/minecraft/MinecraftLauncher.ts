@@ -8,6 +8,7 @@ import type {
 } from '../modpack/ModpackSync';
 import { ServersDat } from './ServersDat';
 import type { GameLauncher } from './GameLauncher';
+import type { JavaProvisioner } from '../java/JavaProvisioner';
 
 const DEFAULT_HOST = 'play.karamon.fr';
 const DEFAULT_PROFILE_NAME = 'Karamon';
@@ -18,6 +19,7 @@ export interface MinecraftLauncherOptions {
   modpackSync: ModpackSync;
   serversDatFactory: (dir: string) => ServersDat;
   gameLauncher: GameLauncher;
+  javaProvisioner: JavaProvisioner;
 }
 
 export interface LaunchEvents {
@@ -36,12 +38,14 @@ export class MinecraftLauncher {
   private readonly modpackSync: ModpackSync;
   private readonly serversDatFactory: (dir: string) => ServersDat;
   private readonly gameLauncher: GameLauncher;
+  private readonly javaProvisioner: JavaProvisioner;
 
-  constructor({ mcLauncherDir, modpackSync, serversDatFactory, gameLauncher }: MinecraftLauncherOptions) {
+  constructor({ mcLauncherDir, modpackSync, serversDatFactory, gameLauncher, javaProvisioner }: MinecraftLauncherOptions) {
     this.mcLauncherDir = mcLauncherDir;
     this.modpackSync = modpackSync;
     this.serversDatFactory = serversDatFactory;
     this.gameLauncher = gameLauncher;
+    this.javaProvisioner = javaProvisioner;
   }
 
   instanceDir(config: AppConfig): string {
@@ -67,19 +71,30 @@ export class MinecraftLauncher {
     const gameDir = this.instanceDir(config);
     this.prepareGameDir(gameDir, config, events.onStatus);
 
+    const javaPath = await this.javaProvisioner.ensure(
+      config.javaPath,
+      events.onStatus,
+      (p) => events.onProgress(p * 0.1),
+    );
+
     events.onStatus('Synchronisation du pack...');
-    await this.modpackSync.sync(DOWNLOADS_BASE_URL, gameDir, events.onStatus, (p) => events.onProgress(p * 0.3));
+    await this.modpackSync.sync(
+      DOWNLOADS_BASE_URL,
+      gameDir,
+      events.onStatus,
+      (p) => events.onProgress(0.1 + p * 0.25),
+    );
 
     await this.gameLauncher.launch(
       {
-        javaPath: config.javaPath,
+        javaPath,
         memoryMb: config.memoryMb,
         jvmArgs: config.jvmArgs,
         gameDir,
       },
       {
         onStatus: events.onStatus,
-        onProgress: (p) => events.onProgress(0.3 + p * 0.7),
+        onProgress: (p) => events.onProgress(0.35 + p * 0.65),
         onLog: events.onLog,
         onExit: events.onExit,
       },
