@@ -68,12 +68,13 @@ export class GameLauncher {
     const javaPath = spec.javaPath || 'java';
     const child = spawn(javaPath, args, {
       cwd: spec.gameDir,
-      detached: false,
+      detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
 
     this.current = child;
+    child.unref();
 
     child.stdout?.on('data', (chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split('\n')) {
