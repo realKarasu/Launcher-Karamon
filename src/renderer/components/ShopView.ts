@@ -90,6 +90,7 @@ const SHOP_KITS: KitOption[] = [
       '3 Clés Légendaires',
       '5 Clés Épiques',
       '1 Plushie Légendaire + 1 Plushie Shiny',
+      'Commande /fly (rayon 16 chunks)',
     ],
   },
 ];
