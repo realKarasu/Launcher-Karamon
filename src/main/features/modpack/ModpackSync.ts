@@ -185,6 +185,7 @@ export class ModpackSync {
         'resource packs',
         'Resource pack supprimé',
         cache.resourcePackFolders,
+        cache.resourcePacksKey !== resourcePacks.key,
         onStatus,
         onProgress,
         0.7,
@@ -203,6 +204,7 @@ export class ModpackSync {
         'shader packs',
         'Shader pack supprimé',
         cache.shaderPackFolders,
+        cache.shaderPacksKey !== shaderPacks.key,
         onStatus,
         onProgress,
         0.84,
@@ -366,6 +368,7 @@ export class ModpackSync {
     statusLabel: string,
     cleanupLabel: string,
     previousFolders: string[] | undefined,
+    forceReExtract: boolean,
     onStatus: StatusEmitter,
     onProgress: ProgressEmitter,
     progressStart: number,
@@ -378,6 +381,7 @@ export class ModpackSync {
         destDir,
         baseUrl,
         urlPrefix,
+        forceReExtract,
         onStatus,
         onProgress,
         progressStart,
@@ -409,6 +413,7 @@ export class ModpackSync {
     destDir: string,
     baseUrl: string,
     urlPrefix: string,
+    forceReExtract: boolean,
     onStatus: StatusEmitter,
     onProgress: ProgressEmitter,
     progressStart: number,
@@ -426,7 +431,7 @@ export class ModpackSync {
         if (!entry) return;
         try {
           if (entry.extract) {
-            await this.downloadAndExtract(entry, destDir, baseUrl, urlPrefix, onStatus);
+            await this.downloadAndExtract(entry, destDir, baseUrl, urlPrefix, forceReExtract, onStatus);
           } else {
             await this.downloadFile(entry, destDir, baseUrl, urlPrefix, onStatus);
           }
@@ -467,11 +472,12 @@ export class ModpackSync {
     destDir: string,
     baseUrl: string,
     urlPrefix: string,
+    forceReExtract: boolean,
     onStatus: StatusEmitter,
   ): Promise<void> {
     const folderName = ModpackSync.folderNameFor(entry.name);
     const folderPath = ModpackSync.safeJoin(destDir, folderName);
-    if (ModpackSync.dirExists(folderPath)) return;
+    if (!forceReExtract && ModpackSync.dirExists(folderPath)) return;
     const url = baseUrl + urlPrefix + encodeURIComponent(entry.name);
     const tmpZip = path.join(
       destDir,
@@ -489,10 +495,14 @@ export class ModpackSync {
 
   private static extractZipToDir(zipPath: string, destDir: string): void {
     const zip = new AdmZip(zipPath);
+    const entries = zip.getEntries();
+    const stripPrefix = ModpackSync.commonTopLevelPrefix(entries);
     fs.mkdirSync(destDir, { recursive: true });
     const root = path.resolve(destDir);
-    for (const entry of zip.getEntries()) {
-      const target = path.resolve(root, entry.entryName);
+    for (const entry of entries) {
+      const relName = stripPrefix ? entry.entryName.slice(stripPrefix.length) : entry.entryName;
+      if (!relName) continue;
+      const target = path.resolve(root, relName);
       if (target !== root && !target.startsWith(root + path.sep)) {
         throw new Error(`Path traversal refusé dans l'archive: ${entry.entryName}`);
       }
@@ -503,6 +513,19 @@ export class ModpackSync {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, entry.getData());
     }
+  }
+
+  private static commonTopLevelPrefix(entries: { entryName: string }[]): string {
+    let prefix: string | null = null;
+    for (const entry of entries) {
+      const name = entry.entryName;
+      const slash = name.indexOf('/');
+      if (slash === -1) return '';
+      const top = name.slice(0, slash + 1);
+      if (prefix === null) prefix = top;
+      else if (prefix !== top) return '';
+    }
+    return prefix ?? '';
   }
 
   private cleanupOrphanedFolders(
