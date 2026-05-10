@@ -166,8 +166,13 @@ export class HttpClient {
           });
           res.pipe(out);
           out.on('finish', () => {
-            fs.renameSync(tmp, dest);
-            resolve();
+            try {
+              fs.renameSync(tmp, dest);
+              resolve();
+            } catch (e) {
+              fs.rmSync(tmp, { force: true });
+              reject(e as Error);
+            }
           });
           out.on('error', reject);
         });

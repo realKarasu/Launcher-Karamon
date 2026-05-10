@@ -68,6 +68,10 @@ export class LibraryDownloader {
     let done = 0;
     for (const task of tasks) {
       onProgress?.(done / tasks.length, task.label);
+      if (!task.artifact.sha1 && fs.existsSync(task.dest)) {
+        done++;
+        continue;
+      }
       await this.http.download(task.artifact.url, task.dest, {
         expectedSha1: task.artifact.sha1,
         label: task.label,

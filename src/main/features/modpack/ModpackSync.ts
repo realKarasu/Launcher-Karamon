@@ -21,6 +21,7 @@ export type ProgressEmitter = (fraction: number) => void;
 interface ManifestEntry {
   name: string;
   size: number;
+  extract?: boolean;
 }
 
 interface OptionalManifest {
@@ -39,7 +40,9 @@ interface CacheData {
   modsEtag?: string;
   jarNames?: string[];
   resourcePacksKey?: string;
+  resourcePackFolders?: string[];
   shaderPacksKey?: string;
+  shaderPackFolders?: string[];
   syncedAt?: number;
 }
 
@@ -130,14 +133,14 @@ export class ModpackSync {
       const writer = this.optionsWriterFactory(gameDir);
       for (const rp of resourcePacks.entries) {
         try {
-          writer.ensureResourcePack(rp.name);
+          writer.ensureResourcePack(ModpackSync.optionsName(rp));
         } catch {
           /* non-fatal */
         }
       }
       for (const sp of shaderPacks.entries) {
         try {
-          writer.ensureShader(sp.name);
+          writer.ensureShader(ModpackSync.optionsName(sp));
         } catch {
           /* non-fatal */
         }
@@ -181,6 +184,7 @@ export class ModpackSync {
         RESOURCE_PACKS_PATH_PREFIX,
         'resource packs',
         'Resource pack supprimé',
+        cache.resourcePackFolders,
         onStatus,
         onProgress,
         0.7,
@@ -198,6 +202,7 @@ export class ModpackSync {
         SHADER_PACKS_PATH_PREFIX,
         'shader packs',
         'Shader pack supprimé',
+        cache.shaderPackFolders,
         onStatus,
         onProgress,
         0.84,
@@ -213,7 +218,13 @@ export class ModpackSync {
       modsEtag: etag,
       jarNames,
       resourcePacksKey: resourcePacks.present ? resourcePacks.key : cache.resourcePacksKey,
+      resourcePackFolders: resourcePacks.present
+        ? ModpackSync.extractedFolders(resourcePacks.entries)
+        : cache.resourcePackFolders,
       shaderPacksKey: shaderPacks.present ? shaderPacks.key : cache.shaderPacksKey,
+      shaderPackFolders: shaderPacks.present
+        ? ModpackSync.extractedFolders(shaderPacks.entries)
+        : cache.shaderPackFolders,
       syncedAt: Date.now(),
     });
     onStatus(
@@ -286,7 +297,23 @@ export class ModpackSync {
         typeof (e as ManifestEntry).name === 'string' &&
         typeof (e as ManifestEntry).size === 'number',
       )
-      .map((e) => ({ name: e.name, size: e.size }));
+      .map((e) => {
+        const entry: ManifestEntry = { name: e.name, size: e.size };
+        if ((e as { extract?: unknown }).extract === true) entry.extract = true;
+        return entry;
+      });
+  }
+
+  private static folderNameFor(zipName: string): string {
+    return zipName.replace(/\.zip$/i, '');
+  }
+
+  private static optionsName(entry: ManifestEntry): string {
+    return entry.extract ? ModpackSync.folderNameFor(entry.name) : entry.name;
+  }
+
+  private static extractedFolders(entries: ManifestEntry[]): string[] {
+    return entries.filter((e) => e.extract).map((e) => ModpackSync.folderNameFor(e.name));
   }
 
   private static hashText(text: string): string {
@@ -304,7 +331,13 @@ export class ModpackSync {
 
   private allEntriesPresent(dir: string, entries: ManifestEntry[]): boolean {
     for (const entry of entries) {
-      if (!ModpackSync.fileMatchesSize(path.join(dir, entry.name), entry.size)) return false;
+      if (entry.extract) {
+        if (!ModpackSync.dirExists(path.join(dir, ModpackSync.folderNameFor(entry.name)))) {
+          return false;
+        }
+      } else if (!ModpackSync.fileMatchesSize(path.join(dir, entry.name), entry.size)) {
+        return false;
+      }
     }
     return true;
   }
@@ -317,6 +350,14 @@ export class ModpackSync {
     }
   }
 
+  private static dirExists(dirPath: string): boolean {
+    try {
+      return fs.statSync(dirPath).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
   private async syncManifestGroup(
     manifest: OptionalManifest,
     destDir: string,
@@ -324,6 +365,7 @@ export class ModpackSync {
     urlPrefix: string,
     statusLabel: string,
     cleanupLabel: string,
+    previousFolders: string[] | undefined,
     onStatus: StatusEmitter,
     onProgress: ProgressEmitter,
     progressStart: number,
@@ -347,8 +389,16 @@ export class ModpackSync {
 
     this.cleanupExtras(
       destDir,
-      manifest.entries.map((e) => e.name),
+      manifest.entries.filter((e) => !e.extract).map((e) => e.name),
       '.zip',
+      onStatus,
+      cleanupLabel,
+    );
+
+    this.cleanupOrphanedFolders(
+      destDir,
+      previousFolders,
+      ModpackSync.extractedFolders(manifest.entries),
       onStatus,
       cleanupLabel,
     );
@@ -374,16 +424,15 @@ export class ModpackSync {
       while (queue.length > 0) {
         const entry = queue.shift();
         if (!entry) return;
-        const target = ModpackSync.safeJoin(destDir, entry.name);
-        if (!ModpackSync.fileMatchesSize(target, entry.size)) {
-          const url = baseUrl + urlPrefix + encodeURIComponent(entry.name);
-          try {
-            await this.http.download(url, target, { label: entry.name });
-            onStatus(`+ ${entry.name}`);
-          } catch (e) {
-            failures.push(entry.name);
-            onStatus(`Échec ${entry.name}: ${(e as Error).message}`);
+        try {
+          if (entry.extract) {
+            await this.downloadAndExtract(entry, destDir, baseUrl, urlPrefix, onStatus);
+          } else {
+            await this.downloadFile(entry, destDir, baseUrl, urlPrefix, onStatus);
           }
+        } catch (e) {
+          failures.push(entry.name);
+          onStatus(`Échec ${entry.name}: ${(e as Error).message}`);
         }
         done++;
         onProgress(progressStart + progressSpan * (done / entries.length));
@@ -396,6 +445,85 @@ export class ModpackSync {
 
     if (failures.length > 0) {
       throw new Error(`${failures.length} téléchargement(s) échoué(s): ${failures.join(', ')}`);
+    }
+  }
+
+  private async downloadFile(
+    entry: ManifestEntry,
+    destDir: string,
+    baseUrl: string,
+    urlPrefix: string,
+    onStatus: StatusEmitter,
+  ): Promise<void> {
+    const target = ModpackSync.safeJoin(destDir, entry.name);
+    if (ModpackSync.fileMatchesSize(target, entry.size)) return;
+    const url = baseUrl + urlPrefix + encodeURIComponent(entry.name);
+    await this.http.download(url, target, { label: entry.name });
+    onStatus(`+ ${entry.name}`);
+  }
+
+  private async downloadAndExtract(
+    entry: ManifestEntry,
+    destDir: string,
+    baseUrl: string,
+    urlPrefix: string,
+    onStatus: StatusEmitter,
+  ): Promise<void> {
+    const folderName = ModpackSync.folderNameFor(entry.name);
+    const folderPath = ModpackSync.safeJoin(destDir, folderName);
+    if (ModpackSync.dirExists(folderPath)) return;
+    const url = baseUrl + urlPrefix + encodeURIComponent(entry.name);
+    const tmpZip = path.join(
+      destDir,
+      `.karamon-extract-${process.pid}-${Date.now()}-${folderName}.zip`,
+    );
+    try {
+      await this.http.download(url, tmpZip, { label: entry.name });
+      fs.rmSync(folderPath, { recursive: true, force: true });
+      ModpackSync.extractZipToDir(tmpZip, folderPath);
+      onStatus(`+ ${folderName}/`);
+    } finally {
+      fs.rmSync(tmpZip, { force: true });
+    }
+  }
+
+  private static extractZipToDir(zipPath: string, destDir: string): void {
+    const zip = new AdmZip(zipPath);
+    fs.mkdirSync(destDir, { recursive: true });
+    const root = path.resolve(destDir);
+    for (const entry of zip.getEntries()) {
+      const target = path.resolve(root, entry.entryName);
+      if (target !== root && !target.startsWith(root + path.sep)) {
+        throw new Error(`Path traversal refusé dans l'archive: ${entry.entryName}`);
+      }
+      if (entry.isDirectory) {
+        fs.mkdirSync(target, { recursive: true });
+        continue;
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, entry.getData());
+    }
+  }
+
+  private cleanupOrphanedFolders(
+    dir: string,
+    previousFolders: string[] | undefined,
+    currentFolders: string[],
+    onStatus: StatusEmitter,
+    label: string,
+  ): void {
+    if (!previousFolders || previousFolders.length === 0) return;
+    const keepLc = new Set(currentFolders.map((n) => n.toLowerCase()));
+    for (const folderName of previousFolders) {
+      if (keepLc.has(folderName.toLowerCase())) continue;
+      const folderPath = path.join(dir, folderName);
+      if (!ModpackSync.dirExists(folderPath)) continue;
+      try {
+        fs.rmSync(folderPath, { recursive: true, force: true });
+        onStatus(`${label}: ${folderName}/`);
+      } catch {
+        /* best-effort */
+      }
     }
   }
 
