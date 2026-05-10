@@ -17,6 +17,7 @@ export interface DownloadOptions {
   label?: string;
   onProgress?: (fraction: number) => void;
   timeoutMs?: number;
+  stallTimeoutMs?: number;
 }
 
 export class HttpClient {
@@ -126,7 +127,13 @@ export class HttpClient {
   }
 
   async download(url: string, dest: string, opts: DownloadOptions = {}): Promise<void> {
-    const { expectedSha1 = '', label = '', onProgress, timeoutMs = 60000 } = opts;
+    const {
+      expectedSha1 = '',
+      label = '',
+      onProgress,
+      timeoutMs = 60000,
+      stallTimeoutMs = 30000,
+    } = opts;
     fs.mkdirSync(path.dirname(dest), { recursive: true });
 
     if (expectedSha1 && fs.existsSync(dest)) {
@@ -154,32 +161,100 @@ export class HttpClient {
             }
           }
           if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+            res.resume();
             return reject(new Error(`HTTP ${res.statusCode} downloading ${label || url}`));
           }
           const total = parseInt(res.headers['content-length'] || '0', 10);
           let received = 0;
           const tmp = dest + '.tmp';
           const out = fs.createWriteStream(tmp);
+
+          let settled = false;
+          let stallTimer: NodeJS.Timeout | null = null;
+          const cleanupTmp = (): void => {
+            try {
+              fs.rmSync(tmp, { force: true });
+            } catch {
+              /* best-effort */
+            }
+          };
+          const fail = (err: Error): void => {
+            if (settled) return;
+            settled = true;
+            if (stallTimer) clearTimeout(stallTimer);
+            try {
+              req.destroy();
+            } catch {
+              /* ignore */
+            }
+            try {
+              res.destroy();
+            } catch {
+              /* ignore */
+            }
+            try {
+              out.destroy();
+            } catch {
+              /* ignore */
+            }
+            cleanupTmp();
+            reject(err);
+          };
+          const armStallTimer = (): void => {
+            if (stallTimer) clearTimeout(stallTimer);
+            stallTimer = setTimeout(() => {
+              fail(
+                new Error(
+                  `Download stalled (${Math.round(stallTimeoutMs / 1000)}s sans données): ` +
+                    (label || url),
+                ),
+              );
+            }, stallTimeoutMs);
+          };
+          armStallTimer();
+
           res.on('data', (chunk: Buffer) => {
             received += chunk.length;
             if (onProgress && total > 0) onProgress(received / total);
+            armStallTimer();
           });
+          res.on('error', (e) => fail(e as Error));
+          res.on('aborted', () =>
+            fail(new Error('Connexion interrompue: ' + (label || url))),
+          );
           res.pipe(out);
           out.on('finish', () => {
+            if (settled) return;
+            if (stallTimer) clearTimeout(stallTimer);
+            if (total > 0 && received < total) {
+              settled = true;
+              cleanupTmp();
+              return reject(
+                new Error(
+                  `Download incomplet ${label || url}: ${received}/${total} octets`,
+                ),
+              );
+            }
             try {
+              try {
+                fs.rmSync(dest, { force: true });
+              } catch {
+                /* best-effort: dest absent ou non supprimable */
+              }
               fs.renameSync(tmp, dest);
+              settled = true;
               resolve();
             } catch (e) {
-              fs.rmSync(tmp, { force: true });
+              cleanupTmp();
+              settled = true;
               reject(e as Error);
             }
           });
-          out.on('error', reject);
+          out.on('error', (e) => fail(e as Error));
         });
         req.on('error', reject);
         req.setTimeout(timeoutMs, () => {
-          req.destroy();
-          reject(new Error('Download timeout: ' + (label || url)));
+          req.destroy(new Error('Download timeout: ' + (label || url)));
         });
       };
       fetchUrl(url);
